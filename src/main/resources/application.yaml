@@ -1,0 +1,22 @@
+logging:
+  level:
+    org.springdoc: DEBUG
+#    org.springframework.security: DEBUG
+
+management:
+  endpoints:
+    health:
+      show-details: always
+    web:
+      exposure:
+        include: health, info, metrics, env
+
+server:
+  servlet:
+    context-path: /api/
+
+spring:
+  application:
+    name: reporthole-be
+  profiles:
+    active: local  # default profile, override this in env
