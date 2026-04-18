@@ -1,6 +1,7 @@
 package za.co.urbaneye.reporthole.user.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -14,6 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import za.co.urbaneye.reporthole.security.Aes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -33,18 +35,26 @@ public class User {
     private UUID userId;
 
     @Column(name = "USER_FIRSTNAME", nullable = false)
+    @Convert(converter = Aes.class)
     private String firstName;
 
     @Column(name = "USER_LASTNAME", nullable = false)
+    @Convert(converter = Aes.class)
     private String lastName;
 
     @Column(name = "USER_EMAIL", nullable = false, unique = true)
+    @Convert(converter = Aes.class)
     private String email;
 
-    @Column(name = "USER_HASH", nullable = false, length = 60)
+    @Column(name = "USER_EMAIL_HASH", nullable = false, unique = true)
+    private String emailHash;
+
+    @Column(name = "USER_HASH", nullable = false, length = 255)
+    @Convert(converter = Aes.class)
     private String password;
 
     @Column(name = "USER_PHONENUMBER")
+    @Convert(converter = Aes.class)
     private String phoneNumber;
 
     @Enumerated(EnumType.STRING)

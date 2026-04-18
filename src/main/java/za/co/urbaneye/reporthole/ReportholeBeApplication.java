@@ -1,5 +1,7 @@
 package za.co.urbaneye.reporthole;
 
+import org.jasypt.encryption.pbe.StandardPBEStringEncryptor;
+import org.jasypt.iv.RandomIvGenerator;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 

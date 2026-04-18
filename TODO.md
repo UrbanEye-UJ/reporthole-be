@@ -3,16 +3,24 @@
 ---
 
 ## 1. YAML Secrets Encryption
-- [ ] Use `${ENV_VAR}` placeholders in `application-prod.yaml` for all sensitive values
-- [ ] Set the following as environment variables on Railway/Render:
+- [ ] Add Jasypt dependency to `pom.xml`:
+  ```xml
+  <dependency>
+      <groupId>com.github.ulisesbocchio</groupId>
+      <artifactId>jasypt-spring-boot-starter</artifactId>
+      <version>4.0.4</version>
+  </dependency>
+  ```
+- [ ] Encrypt the following secrets using Jasypt and wrap them in `ENC(...)` in `application-prod.yaml`:
     - `DB_URL`
     - `DB_USERNAME`
     - `DB_PASSWORD`
     - `ENCRYPTION_SECRET_KEY`
-- [ ] Set the same environment variables locally in IntelliJ run configuration
-- [ ] Never commit plaintext secrets to the repo
+- [ ] Set `JASYPT_ENCRYPTOR_PASSWORD` as the only environment variable on Railway/Render and locally in IntelliJ run configuration
+- [ ] Never commit the master password — store it in a password manager
+- [ ] The encrypted `ENC(...)` values are safe to commit to the repo
 
-> **Note:** We decided against Jasypt because it has known compatibility issues with Spring Boot 3.5.x. Plain environment variable placeholders are the agreed approach.
+> **Note:** Spring Boot was downgraded from 4.0.5 to 3.5.9 specifically for Jasypt `4.0.4` compatibility. Jasypt has known issues with Spring Boot 4.0.x. Do not upgrade Spring Boot to 4.x without verifying Jasypt compatibility first.
 
 ---
 
@@ -57,7 +65,14 @@
 
 ---
 
-## 5. API Documentation
+## 5. LOGGING
+- [ ] Add log messages with unique ID's to make searching logs easier
+- [ ] Add aspect logging for controllers, services and maybe repos
+- [ ] Add aspect logging for matrics, to check how long a method took to run
+
+---
+
+## 6. API Documentation
 - [ ] Verify `springdoc-openapi-starter-webmvc-ui:2.8.17` is resolving correctly
 - [ ] Annotate controllers with `@Operation` and `@ApiResponse`
 - [ ] Annotate DTOs with `@Schema`
@@ -74,7 +89,7 @@
 
 ---
 
-## 6. Tests
+## 7. Tests
 - [ ] **Unit tests** — test service layer logic in isolation using Mockito
     - User registration logic
     - AES encryption/decryption converter
@@ -90,7 +105,7 @@
 
 ---
 
-## 7. GitHub Actions Workflow
+## 8. GitHub Actions Workflow
 - [ ] Create `.github/workflows/test.yml`
 - [ ] Workflow should trigger on push and pull request to `main`
 - [ ] Workflow steps:

@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    driver-class-name: org.postgresql.Driver
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ENC(your-encrypted-value-here)
+    username: ENC(your-encrypted-value-here)
+    password: ENC(your-encrypted-value-here)
+
   jpa:
     hibernate:
       ddl-auto: validate

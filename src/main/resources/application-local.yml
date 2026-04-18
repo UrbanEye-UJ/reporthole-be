@@ -1,9 +1,10 @@
+#Switch the below to JASYPT then share the details
 spring:
   datasource:
-    url: jdbc:h2:mem:reporthole
+    url: ENC(hWDLfXYMh1VW2s4XMEp1bBVSVGyQaSgNe3CDpbVkTMR6Rf/6Ngm4NIpaRrTFZSMWirupSSLWsW+KCmuETvzk/Q==)
     driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    username: ENC(d2Z9tJdmTDwSwYjSMKc06nsmilYeoc+Z1B66c73Ru45sEPnC4QIGxs0PtO//eaQ0)
+    password: ENC(rMrnxY/RzZU6Ht9o3zCvdFnbneK0Rw1hs07zc5NtsPmryfe1jkF8pIi36G0tN4IU)
   h2:
     console:
       enabled: true
