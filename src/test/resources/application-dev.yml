@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ENC(your-encrypted-value-here)
+    username: ENC(your-encrypted-value-here)
+    password: ENC(your-encrypted-value-here)
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
