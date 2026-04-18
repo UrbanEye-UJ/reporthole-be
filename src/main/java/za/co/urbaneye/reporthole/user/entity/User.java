@@ -41,8 +41,8 @@ public class User {
     @Column(name = "USER_EMAIL", nullable = false, unique = true)
     private String email;
 
-    @Column(name = "USER_PASSWORD_HASH", nullable = false, length = 60)
-    private String passwordHash;
+    @Column(name = "USER_HASH", nullable = false, length = 60)
+    private String password;
 
     @Column(name = "USER_PHONENUMBER")
     private String phoneNumber;
