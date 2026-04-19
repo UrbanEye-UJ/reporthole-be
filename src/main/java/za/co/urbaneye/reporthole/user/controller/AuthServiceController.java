@@ -68,7 +68,7 @@ public class AuthServiceController {
             @ApiResponse(responseCode = "400", description = "Invalid request or user already exists"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> save(@RequestBody RegisterRequest request) {
+    public ResponseEntity<HttpStatus> save(@RequestBody RegisterRequest request) {
         service.registerUser(request);
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
@@ -90,7 +90,7 @@ public class AuthServiceController {
             @ApiResponse(responseCode = "404", description = "User not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<String> login(@RequestBody LoginRequest request) {
         return new ResponseEntity<>(service.loginUser(request), HttpStatus.OK);
     }
 }
