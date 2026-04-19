@@ -58,7 +58,7 @@ Choose the guide that matches what you want to do:
 If you just want to get the backend running as fast as possible:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/UrbanEye-UJ/reporthole-be.git
 cd reporthole/reporthole-be
 touch .env   # add JASYPT_ENCRYPTOR_PASSWORD=<ask a teammate>
 docker compose -f docker-compose-local.yml up --build
@@ -104,33 +104,6 @@ Full instructions → [DEV_SETUP.md](DEV_SETUP.md)
 | Build | Maven 3.9+ |
 | Deployment | Railway / Render (free tier) |
 
----
-
-## Project structure
-
-```
-reporthole-be/
-├── src/
-│   ├── main/
-│   │   ├── java/za/co/urbaneye/reporthole/
-│   │   │   ├── config/         # Security, CORS, Jasypt config
-│   │   │   ├── controller/     # REST controllers
-│   │   │   ├── dto/            # Request / response DTOs
-│   │   │   ├── entity/         # JPA entities
-│   │   │   ├── mapper/         # MapStruct mappers
-│   │   │   ├── repository/     # Spring Data JPA repositories
-│   │   │   └── service/        # Business logic
-│   │   └── resources/
-│   │       ├── application.yml           # Base config (all profiles)
-│   │       └── application-local.yml     # Local dev config (H2)
-│   └── test/
-├── docker-compose-local.yml    # Docker setup for local testing
-├── Dockerfile
-├── DEV_SETUP.md                # How to set up your dev environment
-├── DOCKER.md                   # How to run via Docker
-├── GIT_GUIDE.md                # Git workflow and conventions
-└── pom.xml
-```
 
 ---
 
