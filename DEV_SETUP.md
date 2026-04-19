@@ -20,8 +20,10 @@ This guide is for team members who want to run the backend **locally for develop
 
 ## 1. Clone the repo
 
+Create a folder called `reporthole` and navigate into it:
+
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/UrbanEye-UJ/reporthole-be.git
 cd reporthole/reporthole-be
 ```
 
@@ -109,39 +111,21 @@ The H2 console lets you browse the in-memory database directly.
 
 Go to **File → Settings → Plugins** and search for:
 
-| Plugin | Why |
-|--------|-----|
-| **Lombok** | Required — the project uses Lombok annotations. Without this, you'll see red errors everywhere |
+| Plugin                | Why |
+|-----------------------|-----|
+| **Lombok**            | Required — the project uses Lombok annotations. Without this, you'll see red errors everywhere |
 | **MapStruct Support** | Helps with mapper code generation |
-| **EnvFile** | Lets you load `.env` files into run configurations |
+| **EnvFile**           | Lets you load `.env` files into run configurations |
+| **EnvFile**           | Lets you load `.env` files into run configurations |
+| **Maven**             | The build tool is Maven, so this helps with managing dependencies and running goals |
 
 > After installing Lombok, go to **File → Settings → Build, Execution, Deployment → Compiler → Annotation Processors** and tick **Enable annotation processing**.
+> Then restart IntelliJ to make sure Lombok is working correctly.
+> Then on the folder directory do rigt click the pom file and click **Maven → Reload project** to make sure all dependencies are correctly imported.
+> Then right click the pom file again and click **Maven → Generate Sources and Update Folders** to make sure all generated sources (like MapStruct mappers) are created.
+> On the right side there is a maven tab (m logo) click on it there is a lifecycle option expand it and select clean install then the play button to build an artifact.
+> Then you can run the application by right clicking the main class and click **Run 'ReportholeApplication'**.
 
----
-
-## Project structure (backend)
-
-```
-reporthole-be/
-├── src/
-│   ├── main/
-│   │   ├── java/za/co/urbaneye/reporthole/
-│   │   │   ├── config/         # Security, CORS, Jasypt config
-│   │   │   ├── controller/     # REST controllers
-│   │   │   ├── dto/            # Request / response DTOs
-│   │   │   ├── entity/         # JPA entities
-│   │   │   ├── mapper/         # MapStruct mappers
-│   │   │   ├── repository/     # Spring Data JPA repositories
-│   │   │   └── service/        # Business logic
-│   │   └── resources/
-│   │       ├── application.yml           # Base config (all profiles)
-│   │       └── application-local.yml     # Local dev config (H2)
-│   └── test/
-├── Dockerfile
-└── pom.xml
-```
-
----
 
 ## Tech stack reference
 

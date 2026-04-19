@@ -16,7 +16,7 @@ git config --global user.email "your.email@example.com"
 Clone the repo:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/UrbanEye-UJ/reporthole-be.git
 cd reporthole/reporthole-be
 ```
 
