@@ -16,4 +16,4 @@ spring:
 
 services:
   web:
-    url: http://localhost:3000
+    url: {UI_URL:http://localhost:3000}
