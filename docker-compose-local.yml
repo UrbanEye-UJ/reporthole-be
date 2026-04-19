@@ -2,7 +2,7 @@ services:
 
   reporthole-be:
     build:
-      context: ./reporthole-be
+      context: .
       dockerfile: Dockerfile
     container_name: reporthole-be
     ports:
@@ -10,6 +10,8 @@ services:
     environment:
       # Jasypt master password — must match what was used to encrypt your ENC(...) values
       JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD}
+      SERVICES_WEB_URL: http://localhost= 8080/api
+
       # Keep local profile so H2 + create-drop is used
       SPRING_PROFILES_ACTIVE: local
     volumes:
@@ -17,7 +19,7 @@ services:
       - h2-data:/app/h2
     networks:
       - reporthole-net
-    restart: unless-stopped
+#    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
       interval: 30s
@@ -25,21 +27,22 @@ services:
       retries: 3
       start_period: 40s
 
-  reporthole-fe:
-    build:
-      context: ./reporthole-fe
-      dockerfile: Dockerfile
-    container_name: reporthole-fe
-    ports:
-      - "3000:3000"
-    environment:
-      - UI_URL=http://localhost:8080/api
-    depends_on:
-      reporthole-be:
-        condition: service_healthy
-    networks:
-      - reporthole-net
-    restart: unless-stopped
+#  reporthole-fe:
+#    build:
+#      context: ./reporthole-fe
+#      dockerfile: Dockerfile
+#    container_name: reporthole-fe
+#    ports:
+#      - "3000:3000"
+#    environment:
+#      - UI_URL=http://localhost:8080/api
+#      - JASYPT_ENCRYPTOR_PASSWORD=${JASYPT_ENCRYPTOR_PASSWORD}
+#    depends_on:
+#      reporthole-be:
+#        condition: service_healthy
+#    networks:
+#      - reporthole-net
+#    restart: unless-stopped
 
 volumes:
   h2-data:
