@@ -45,11 +45,11 @@ Two reporting modes are supported:
 
 Choose the guide that matches what you want to do:
 
-| Guide | Description |
-|-------|-------------|
-| [DEV_SETUP.md](DEV_SETUP.md) | Set up your machine to **write and run code** — IntelliJ, Java 21, Maven, Lombok, environment variables |
-| [DOCKER.md](DOCKER.md) | **Run and test the backend** without installing Java — Docker only |
-| [GIT_GUIDE.md](GIT_GUIDE.md) | Git workflow, branch strategy, commit conventions, and how to resolve conflicts |
+| Guide                                | Description |
+|--------------------------------------|-------------|
+| [DEV_SETUP.md](docs/DEV_SETUP.md)    | Set up your machine to **write and run code** — IntelliJ, Java 21, Maven, Lombok, environment variables |
+| [DOCKER.md](DOCKER.md)               | **Run and test the backend** without installing Java — Docker only |
+| [GIT_GUIDE.md](docs/GITHUBDESKTOP.md)| Git workflow, branch strategy, commit conventions, and how to resolve conflicts |
 
 ---
 
@@ -58,7 +58,7 @@ Choose the guide that matches what you want to do:
 If you just want to get the backend running as fast as possible:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/UrbanEye-UJ/reporthole-be.git
 cd reporthole/reporthole-be
 touch .env   # add JASYPT_ENCRYPTOR_PASSWORD=<ask a teammate>
 docker compose -f docker-compose-local.yml up --build
@@ -80,7 +80,7 @@ If you want to write code and run the app from IntelliJ:
 4. Enable annotation processing for Lombok
 5. Hit Run
 
-Full instructions → [DEV_SETUP.md](DEV_SETUP.md)
+Full instructions → [DEV_SETUP.md](docs/DEV_SETUP.md)
 
 ---
 
@@ -104,33 +104,6 @@ Full instructions → [DEV_SETUP.md](DEV_SETUP.md)
 | Build | Maven 3.9+ |
 | Deployment | Railway / Render (free tier) |
 
----
-
-## Project structure
-
-```
-reporthole-be/
-├── src/
-│   ├── main/
-│   │   ├── java/za/co/urbaneye/reporthole/
-│   │   │   ├── config/         # Security, CORS, Jasypt config
-│   │   │   ├── controller/     # REST controllers
-│   │   │   ├── dto/            # Request / response DTOs
-│   │   │   ├── entity/         # JPA entities
-│   │   │   ├── mapper/         # MapStruct mappers
-│   │   │   ├── repository/     # Spring Data JPA repositories
-│   │   │   └── service/        # Business logic
-│   │   └── resources/
-│   │       ├── application.yml           # Base config (all profiles)
-│   │       └── application-local.yml     # Local dev config (H2)
-│   └── test/
-├── docker-compose-local.yml    # Docker setup for local testing
-├── Dockerfile
-├── DEV_SETUP.md                # How to set up your dev environment
-├── DOCKER.md                   # How to run via Docker
-├── GIT_GUIDE.md                # Git workflow and conventions
-└── pom.xml
-```
 
 ---
 
@@ -142,4 +115,4 @@ reporthole-be/
 - Always branch off `develop`, never commit directly to `main`
 - Open a Pull Request and get a review before merging
 
-See [GIT_GUIDE.md](GIT_GUIDE.md) for the full workflow.
+See [GIT_GUIDE.md](docs/GIT_GUIDE.md) for the full workflow.
