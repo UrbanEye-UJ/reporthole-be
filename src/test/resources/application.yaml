@@ -22,7 +22,7 @@ spring:
 
 web:
   aes:
-    key: test-aes-key-123456
+    key: 6hwQJyhNYUVHCQb5YhD5RYQoDb6RoBZM1S1XuX+/zCE=
   jwt:
-    key: test-jwt-secret-key-123456
+    key: T4cHmU+aswwAk1pyDbubDRto5SRbNBH66iezpdgpICTuo062/T3A54dmz0lKQee9JI8ZBrrDDmQ3An/O521sVg==
     expiration: 86400000
