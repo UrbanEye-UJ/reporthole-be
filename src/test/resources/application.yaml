@@ -1,13 +1,6 @@
-jasypt:
-  encryptor:
-    algorithm: PBEWITHHMACSHA512ANDAES_256
-    iv-generator-classname: org.jasypt.iv.RandomIvGenerator
-    password: ${JASYPT_ENCRYPTOR_PASSWORD}
-
 logging:
   level:
     org.springdoc: DEBUG
-#    org.springframework.security: DEBUG
 
 management:
   endpoints:
@@ -25,11 +18,11 @@ spring:
   application:
     name: reporthole-be
   profiles:
-    active: local  # default profile, override this in env
+    active: local
 
 web:
   aes:
-    key: ENC(CCYnDahSahayz24eQ91czkfxDy9LJM/eZ70io7PhNUr4poer+SrCuCBiXoVtK/034YXcBn5Ww24cKnI+zB8wOSSGJPMZemSqUUR1kPmf1js=)
+    key: test-aes-key-123456
   jwt:
-    key: ENC(nTVulF4SgS7kw3GMeke/fFPWEq0qOqSauLIvQTPBGMwj0avVTl28nIc+8djS7DqRTEwF3JfME2dG71OGqV0BQ4ZZXtBzFKHJEgNaVLUBjwHNgCegDz8ZXTK8RnfMoUPgPLIxmiCL8/DBm8J8q2wWL6LSJf7k4qBLwVqGH3bJu04=)
+    key: test-jwt-secret-key-123456
     expiration: 86400000
