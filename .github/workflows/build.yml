@@ -19,3 +19,5 @@ jobs:
 
       - name: Build & Test
         run: mvn clean test
+        env:
+          JASYPT_ENCRYPTOR_PASSWORD: ${{ secrets.JASYPT_MASTER_PASSWORD }}
