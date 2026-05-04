@@ -24,6 +24,6 @@ jobs:
           else
             echo "SECRET IS SET (length: ${#JASYPT_ENCRYPTOR_PASSWORD})"
           fi
-          mvn clean test -Dspring.profiles.active=local
+          mvn clean test -X -Dspring.profiles.active=local
         env:
           JASYPT_ENCRYPTOR_PASSWORD: ${{ secrets.JASYPT_MASTER_PASSWORD }}
