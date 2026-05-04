@@ -18,6 +18,6 @@ jobs:
           distribution: 'temurin'
 
       - name: Build & Test
-        run: mvn clean test
+        run: mvn clean test -Dspring.profiles.active=local
         env:
           JASYPT_ENCRYPTOR_PASSWORD: ${{ secrets.JASYPT_MASTER_PASSWORD }}
