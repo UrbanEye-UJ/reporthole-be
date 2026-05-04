@@ -20,9 +20,9 @@ jobs:
       - name: Build & Test
         run: |
           if [ -z "APPLICATION_NAME" ]; then
-          echo "SECRET IS EMPTY"
+          echo "APPLICATION_NAME IS EMPTY"
           else
-          echo "SECRET IS SET (length: ${#JASYPT_ENCRYPTOR_PASSWORD})"
+          echo "APPLICATION_NAME IS SET (${#JASYPT_ENCRYPTOR_PASSWORD})"
           fi
           if [ -z "$JASYPT_ENCRYPTOR_PASSWORD" ]; then
             echo "SECRET IS EMPTY"
