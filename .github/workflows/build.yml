@@ -18,6 +18,12 @@ jobs:
           distribution: 'temurin'
 
       - name: Build & Test
-        run: mvn clean test -Dspring.profiles.active=local
+        run: |
+          if [ -z "$JASYPT_ENCRYPTOR_PASSWORD" ]; then
+            echo "SECRET IS EMPTY"
+          else
+            echo "SECRET IS SET (length: ${#JASYPT_ENCRYPTOR_PASSWORD})"
+          fi
+          mvn clean test -Dspring.profiles.active=local
         env:
           JASYPT_ENCRYPTOR_PASSWORD: ${{ secrets.JASYPT_MASTER_PASSWORD }}
