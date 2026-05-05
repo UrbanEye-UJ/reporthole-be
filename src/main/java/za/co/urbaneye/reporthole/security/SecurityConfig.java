@@ -56,8 +56,8 @@ public class SecurityConfig {
      * Custom JWT authentication filter.
      */
     private final JwtAuthenticationFilter jwtAuthFilter;
-    @Value("${services.web.url}")
-    private String FRONTEND_URL;
+    @Value("#{'${services.web.allowed-origins}'.split(',')}")
+    private List<String> allowedOrigins;
 
 
     /**
@@ -117,7 +117,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(FRONTEND_URL));
+        configuration.setAllowedOriginPatterns(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

@@ -11,8 +11,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.user.controller.AuthServiceController;
+import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
+import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserAuthService;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +42,7 @@ class AuthServiceControllerTest {
     void shouldRegisterUser() throws Exception {
 
         RegisterRequest request =
-                new RegisterRequest("John","Doe","john@mail.com","","CIVILIAN","123","0711111111");
+                new RegisterRequest("John","Doe","john@mail.com",UserRole.CIVILIAN,"123","0711111111");
 
         mockMvc.perform(post("/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -53,12 +55,14 @@ class AuthServiceControllerTest {
 
         LoginRequest request = new LoginRequest("john@mail.com","123");
 
-        Mockito.when(service.loginUser(any())).thenReturn("jwt-token");
+        Mockito.when(service.loginUser(any()))
+                .thenReturn(new AuthResponse("jwt-token", UserRole.CIVILIAN));
 
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(content().string("jwt-token"));
+                .andExpect(jsonPath("$.data.token").value("jwt-token"))
+                .andExpect(jsonPath("$.data.role").value("CIVILIAN"));
     }
 }

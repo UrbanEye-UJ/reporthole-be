@@ -16,4 +16,4 @@ spring:
 
 services:
   web:
-    url: ${SERVICES_WEB_URL:http://localhost:3000}
+    allowed-origins: ${SERVICES_WEB_ALLOWED_ORIGINS:http://localhost:3000,http://192.168.*:3000,http://10.*:3000,http://172.*:3000}

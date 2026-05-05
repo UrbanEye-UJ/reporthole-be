@@ -8,6 +8,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
+import za.co.urbaneye.reporthole.user.entity.UserRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -26,7 +27,7 @@ class AuthIntegrationTest {
         String url = "http://localhost:" + port + "/api/auth/register";
 
         RegisterRequest register =
-                new RegisterRequest("John","Doe","john@mail.com","","CIVILIAN","123","0711111111");
+                new RegisterRequest("John","Doe","john@mail.com", UserRole.CIVILIAN,"123","0711111111");
 
         ResponseEntity<Void> registerResponse =
                 restTemplate.postForEntity(url, register, Void.class);

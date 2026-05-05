@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import za.co.urbaneye.reporthole.security.Jwt;
+import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
@@ -46,7 +47,7 @@ class IUserAuthServiceImplTest {
     @BeforeEach
     void setup() {
         registerRequest = new RegisterRequest(
-                "John","Doe","john@mail.com","","CIVILIAN","123","0711111111"
+                "John","Doe","john@mail.com",UserRole.CIVILIAN,"123","0711111111"
         );
     }
 
@@ -86,9 +87,10 @@ class IUserAuthServiceImplTest {
         when(encoder.matches("123","hashed")).thenReturn(true);
         when(jwt.generateToken(any(), any())).thenReturn("token");
 
-        String token = service.loginUser(new LoginRequest("john@mail.com","123"));
+        AuthResponse result = service.loginUser(new LoginRequest("john@mail.com","123"));
 
-        assertEquals("token", token);
+        assertEquals("token", result.token());
+        assertEquals(UserRole.CIVILIAN, result.role());
     }
 
     @Test
