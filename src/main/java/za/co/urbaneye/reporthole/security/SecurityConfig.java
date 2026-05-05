@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import za.co.urbaneye.reporthole.config.WebProperties;
 
 import java.util.List;
 
@@ -56,8 +57,8 @@ public class SecurityConfig {
      * Custom JWT authentication filter.
      */
     private final JwtAuthenticationFilter jwtAuthFilter;
-    @Value("#{'${services.web.allowed-origins}'.split(',')}")
-    private List<String> allowedOrigins;
+
+    private final WebProperties webProperties;
 
 
     /**
@@ -117,7 +118,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(allowedOrigins);
+        configuration.setAllowedOriginPatterns(webProperties.getAllowed());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

@@ -12,4 +12,8 @@ spring:
 
 services:
   web:
-    allowed-origins: http://localhost:3000,http://192.168.*:3000
+    allowed:
+      - http://localhost:3000,
+      - http://192.168.*:3000,
+      - http://10.*:3000,
+      - http://172.*:3000

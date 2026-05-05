@@ -10,6 +10,6 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
 
-services:
-  web:
-    allowed-origins: ${SERVICES_WEB_ALLOWED_ORIGINS}
+#services:
+#  web:
+#    allowed: ${SERVICES_WEB_ALLOWED_ORIGINS}
