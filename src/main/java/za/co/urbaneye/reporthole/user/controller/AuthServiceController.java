@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import za.co.urbaneye.reporthole.global.entity.AppResponse;
+import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserAuthService;
@@ -68,9 +70,11 @@ public class AuthServiceController {
             @ApiResponse(responseCode = "400", description = "Invalid request or user already exists"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<HttpStatus> save(@RequestBody RegisterRequest request) {
+    public ResponseEntity<AppResponse<Void>> save(@RequestBody RegisterRequest request) {
         service.registerUser(request);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(AppResponse.created(null));
     }
 
     /**
@@ -90,7 +94,7 @@ public class AuthServiceController {
             @ApiResponse(responseCode = "404", description = "User not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<String> login(@RequestBody LoginRequest request) {
-        return new ResponseEntity<>(service.loginUser(request), HttpStatus.OK);
+    public ResponseEntity<AppResponse<AuthResponse>> login(@RequestBody LoginRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(service.loginUser(request)));
     }
 }

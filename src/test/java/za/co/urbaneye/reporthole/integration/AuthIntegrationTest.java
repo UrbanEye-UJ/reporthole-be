@@ -6,12 +6,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
+import org.springframework.test.context.ActiveProfiles;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
+import za.co.urbaneye.reporthole.user.entity.UserRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("local")
 class AuthIntegrationTest {
 
     @LocalServerPort
@@ -26,7 +29,7 @@ class AuthIntegrationTest {
         String url = "http://localhost:" + port + "/api/auth/register";
 
         RegisterRequest register =
-                new RegisterRequest("John","Doe","john@mail.com","","CIVILIAN","123","0711111111");
+                new RegisterRequest("John","Doe","john@mail.com", UserRole.CIVILIAN,"123","0711111111");
 
         ResponseEntity<Void> registerResponse =
                 restTemplate.postForEntity(url, register, Void.class);

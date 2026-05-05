@@ -6,6 +6,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.security.SecretUtil;
+import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
@@ -107,15 +108,16 @@ public class IUserAuthServiceImpl implements IUserAuthService {
      * </ul>
      *
      * @param user login request credentials
-     * @return signed JWT token
+     * @return authentication response containing the JWT token and user role
      * @throws UserServiceException if user is not found
      *                              or credentials are invalid
      */
     @Override
-    public String loginUser(LoginRequest user) {
-        log.info("Login user with email {}", user.email());
+    public AuthResponse loginUser(LoginRequest user) {
+        log.info("Login attempt received");
 
         final String emailHash = SecretUtil.hashEmail(user.email());
+        log.debug("Looking up user by email hash: {}", emailHash);
         final Optional<User> savedUser = repository.findByEmailHash(emailHash);
 
         if (!savedUser.isPresent()) {
@@ -127,9 +129,9 @@ public class IUserAuthServiceImpl implements IUserAuthService {
             throw new UserServiceException("Incorrect password");
         }
 
-        return jwt.generateToken(
-                savedUser.get().getUserId(),
-                savedUser.get().getRole()
-        );
+        final User found = savedUser.get();
+        final String token = jwt.generateToken(found.getUserId(), found.getRole());
+
+        return new AuthResponse(token, found.getRole());
     }
 }

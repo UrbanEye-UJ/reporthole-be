@@ -10,6 +10,6 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
 
-services:
-  web:
-    url: http://localhost:3000
+#services:
+#  web:
+#    allowed: ${SERVICES_WEB_ALLOWED_ORIGINS}
