@@ -1,5 +1,7 @@
 package za.co.urbaneye.reporthole.user.dto;
 
+import za.co.urbaneye.reporthole.user.entity.UserRole;
+
 /**
  * Data Transfer Object (DTO) representing a user registration request.
  *
@@ -14,7 +16,6 @@ package za.co.urbaneye.reporthole.user.dto;
  * @param firstName   user's first name
  * @param lastName    user's last name
  * @param email       user's email address
- * @param emailHash   hashed representation of the email for secure lookup/storage
  * @param role        requested or assigned user role
  * @param password    user's plaintext password submitted for hashing
  * @param phoneNumber user's contact phone number
@@ -26,8 +27,7 @@ public record RegisterRequest(
         String firstName,
         String lastName,
         String email,
-        String emailHash,
-        String role,
+        UserRole role,
         String password,
         String phoneNumber
 ) {

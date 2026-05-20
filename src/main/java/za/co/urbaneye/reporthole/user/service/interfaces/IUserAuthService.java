@@ -1,5 +1,6 @@
 package za.co.urbaneye.reporthole.user.service.interfaces;
 
+import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
 
@@ -36,7 +37,7 @@ public interface IUserAuthService {
      *
      * @param user login request containing
      *             credentials
-     * @return generated authentication token
+     * @return authentication response containing token and role
      */
-    String loginUser(final LoginRequest user);
+    AuthResponse loginUser(final LoginRequest user);
 }

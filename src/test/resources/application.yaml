@@ -1,7 +1,3 @@
-logging:
-  level:
-    org.springdoc: DEBUG
-
 management:
   endpoints:
     health:

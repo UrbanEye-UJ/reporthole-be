@@ -4,6 +4,12 @@ jasypt:
     iv-generator-classname: org.jasypt.iv.RandomIvGenerator
     password: ${JASYPT_ENCRYPTOR_PASSWORD}
 
+spring:
+  application:
+    name: reporthole-be
+  profiles:
+    active: local
+
 logging:
   level:
     org.springdoc: DEBUG
@@ -20,12 +26,6 @@ management:
 server:
   servlet:
     context-path: /api/
-
-spring:
-  application:
-    name: reporthole-be
-  profiles:
-    active: local  # default profile, override this in env
 
 web:
   aes:

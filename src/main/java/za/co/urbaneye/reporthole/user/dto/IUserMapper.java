@@ -37,6 +37,7 @@ public interface IUserMapper {
      * <p>The following fields are ignored because they are system-managed:</p>
      * <ul>
      *     <li>userId</li>
+     *     <li>emailHash — computed server-side via {@code SecretUtil.hashEmail()}</li>
      *     <li>createdAt</li>
      * </ul>
      *
@@ -45,6 +46,7 @@ public interface IUserMapper {
      */
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "emailHash", ignore = true)
     User toEntity(RegisterRequest user);
 
     /**
