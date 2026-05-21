@@ -17,6 +17,8 @@ import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserAuthService;
 
+import java.util.UUID;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -56,7 +58,7 @@ class AuthServiceControllerTest {
         LoginRequest request = new LoginRequest("john@mail.com","123");
 
         Mockito.when(service.loginUser(any()))
-                .thenReturn(new AuthResponse("jwt-token", UserRole.CIVILIAN));
+                .thenReturn(new AuthResponse("jwt-token", UserRole.CIVILIAN, UUID.randomUUID()));
 
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

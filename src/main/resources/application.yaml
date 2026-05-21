@@ -33,3 +33,8 @@ web:
   jwt:
     key: ENC(nTVulF4SgS7kw3GMeke/fFPWEq0qOqSauLIvQTPBGMwj0avVTl28nIc+8djS7DqRTEwF3JfME2dG71OGqV0BQ4ZZXtBzFKHJEgNaVLUBjwHNgCegDz8ZXTK8RnfMoUPgPLIxmiCL8/DBm8J8q2wWL6LSJf7k4qBLwVqGH3bJu04=)
     expiration: 86400000
+
+app:
+  upload:
+    dir: uploads/incidents
+  base-url: http://localhost:8080

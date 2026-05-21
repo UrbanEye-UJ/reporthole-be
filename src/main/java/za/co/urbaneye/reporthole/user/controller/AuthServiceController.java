@@ -30,6 +30,10 @@ import za.co.urbaneye.reporthole.user.service.interfaces.IUserAuthService;
  * @author Refentse
  * @since 1.0
  */
+@CrossOrigin(
+        origins = "http://localhost:3000",
+        allowCredentials = "true"
+)
 @RestController
 @RequestMapping("auth")
 @Slf4j

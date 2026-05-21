@@ -55,6 +55,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authHeader = request.getHeader("Authorization");
 
         // Continue request if no Bearer token is present
@@ -76,14 +81,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         List<String> roles = jwt.extractRoles(token);
 
         List<SimpleGrantedAuthority> authorities = roles.stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+                .map(SimpleGrantedAuthority::new)
                 .toList();
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
+        System.out.println("AUTHENTICATED USER: " + authentication.getPrincipal());
+        System.out.println("AUTHORITIES: " + authentication.getAuthorities());
+        System.out.println("IS AUTHENTICATED: " + authentication.isAuthenticated());
         filterChain.doFilter(request, response);
     }
 }
