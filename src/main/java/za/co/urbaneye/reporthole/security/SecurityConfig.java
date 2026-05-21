@@ -83,7 +83,7 @@ public class SecurityConfig {
                     .requestMatchers("/auth/**").permitAll()
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**","/actuator/**").permitAll()
                     .requestMatchers("/uploads/**").permitAll()
-                    .requestMatchers("/incidents/**").permitAll()
+                    .requestMatchers("/incidents/**").authenticated()
                     .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -122,8 +122,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        //configuration.setAllowedOriginPatterns(webProperties.getAllowed());
-        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+        configuration.setAllowedOriginPatterns(webProperties.getAllowed());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

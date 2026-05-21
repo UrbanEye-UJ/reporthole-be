@@ -4,8 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
+import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.repository.IncidentRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
@@ -14,6 +16,8 @@ import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -24,8 +28,10 @@ public class IncidentServiceImpl implements IncidentService {
     private final ImageStorageService imageStorageService;
     private final GeometryFactory geometryFactory = new GeometryFactory();
     @Override
-    public Incident createIncident(IncidentRequestDTO request) {
-        final User user = userRepository.findById(request.getUserId())
+    public IncidentResponseDTO createIncident(IncidentRequestDTO request) {
+        final String rawId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        final UUID userId = UUID.fromString(rawId);
+        final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         final Point point = geometryFactory.createPoint(
                 new Coordinate(request.getLongitude(), request.getLatitude())
@@ -40,6 +46,37 @@ public class IncidentServiceImpl implements IncidentService {
         incident.setLocation(point);
         incident.setImageUrl(imageUrl);
         incident.setUser(user);
-        return incidentRepository.save(incident);
+        final Incident saved = incidentRepository.save(incident);
+        return IncidentResponseDTO.builder()
+                .incidentId(saved.getIncidentId())
+                .incidentType(saved.getIncidentType())
+                .description(saved.getDescription())
+                .source(saved.getSource())
+                .incidentDate(saved.getIncidentDate())
+                .latitude(point.getY())
+                .longitude(point.getX())
+                .imageUrl(saved.getImageUrl())
+                .userId(user.getUserId())
+                .build();
+    }
+
+    @Override
+    public List<IncidentResponseDTO> getMyIncidents() {
+        final UUID userId = UUID.fromString(
+                (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal()
+        );
+        return incidentRepository.findByUser_UserId(userId).stream()
+                .map(incident -> IncidentResponseDTO.builder()
+                        .incidentId(incident.getIncidentId())
+                        .incidentType(incident.getIncidentType())
+                        .description(incident.getDescription())
+                        .source(incident.getSource())
+                        .incidentDate(incident.getIncidentDate())
+                        .latitude(incident.getLocation().getY())
+                        .longitude(incident.getLocation().getX())
+                        .imageUrl(incident.getImageUrl())
+                        .userId(userId)
+                        .build())
+                .toList();
     }
 }

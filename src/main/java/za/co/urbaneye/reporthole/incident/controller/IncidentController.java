@@ -8,20 +8,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
-import za.co.urbaneye.reporthole.incident.entity.Incident;
+import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 
-@CrossOrigin(
-        origins = "http://localhost:3000",
-        allowCredentials = "true"
-)
 @RestController
 @RequestMapping("incidents")
 @RequiredArgsConstructor
@@ -44,10 +42,16 @@ public class IncidentController {
             @ApiResponse(responseCode = "400", description = "Invalid request or incident already exists"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<AppResponse<Incident>> createIncident(@RequestBody IncidentRequestDTO request) {
-        Incident incident = incidentService.createIncident(request);
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> createIncident(@RequestBody IncidentRequestDTO request) {
+        IncidentResponseDTO incident = incidentService.createIncident(request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(AppResponse.created(incident));
+    }
+
+    @GetMapping("/my")
+    @Operation(summary = "Get my incidents", description = "Returns all incidents reported by the authenticated user.")
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getMyIncidents() {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getMyIncidents()));
     }
 }
