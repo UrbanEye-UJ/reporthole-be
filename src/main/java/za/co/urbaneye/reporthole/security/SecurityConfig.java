@@ -78,11 +78,13 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
+            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers("/auth/**").permitAll()
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**","/actuator/**").permitAll()
                     .requestMatchers("/uploads/**").permitAll()
+                    .requestMatchers("/h2-console/**").permitAll()
                     .requestMatchers("/incidents/**").authenticated()
                     .anyRequest().authenticated()
             )
