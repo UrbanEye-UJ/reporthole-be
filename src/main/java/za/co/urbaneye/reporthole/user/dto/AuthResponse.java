@@ -2,6 +2,8 @@ package za.co.urbaneye.reporthole.user.dto;
 
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 
+import java.util.UUID;
+
 /**
  * Response payload returned on successful authentication.
  *
@@ -13,5 +15,6 @@ import za.co.urbaneye.reporthole.user.entity.UserRole;
  */
 public record AuthResponse(
         String token,
-        UserRole role
+        UserRole role,
+        UUID userId
 ) {}

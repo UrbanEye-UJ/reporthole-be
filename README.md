@@ -107,6 +107,27 @@ Full instructions → [DEV_SETUP.md](docs/DEV_SETUP.md)
 
 ---
 
+## H2 Console (local dev only)
+
+When running locally, the H2 in-memory database ships with a built-in browser console so you can inspect tables and run SQL without any external tool.
+
+**URL:** http://localhost:8080/api/h2-console
+
+On the login screen use these settings:
+
+| Field | Value |
+|-------|-------|
+| Driver Class | `org.h2.Driver` |
+| JDBC URL | `jdbc:h2:mem:reporthole` |
+| User Name | `sa` |
+| Password | `password` |
+
+Click **Connect** and you will see all tables in the left panel.
+
+> The H2 database is **in-memory** with `ddl-auto: create-drop`. Every time the backend restarts the schema is recreated and all data is wiped. This is expected — H2 is only used for local development. Production uses PostgreSQL.
+
+---
+
 ## Key rules for contributors
 
 - All API endpoints require authentication — no anonymous access

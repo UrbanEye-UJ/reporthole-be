@@ -22,3 +22,8 @@ web:
   jwt:
     key: T4cHmU+aswwAk1pyDbubDRto5SRbNBH66iezpdgpICTuo062/T3A54dmz0lKQee9JI8ZBrrDDmQ3An/O521sVg==
     expiration: 86400000
+
+app:
+  upload:
+    dir: target/test-uploads
+  base-url: http://localhost:8080/api

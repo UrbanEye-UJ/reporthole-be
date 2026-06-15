@@ -119,7 +119,10 @@ public class Jwt {
      */
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
-        return (List<String>) extractClaims(token).get("roles");
+        Object roleClaim = extractClaims(token).get("role");
+        if (roleClaim == null) return List.of();
+        if (roleClaim instanceof List) return (List<String>) roleClaim;
+        return List.of(roleClaim.toString());
     }
 
     /**

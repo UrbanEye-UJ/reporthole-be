@@ -132,6 +132,6 @@ public class IUserAuthServiceImpl implements IUserAuthService {
         final User found = savedUser.get();
         final String token = jwt.generateToken(found.getUserId(), found.getRole());
 
-        return new AuthResponse(token, found.getRole());
+        return new AuthResponse(token, found.getRole(), found.getUserId());
     }
 }
