@@ -10,7 +10,7 @@ services:
     environment:
       # Jasypt master password — must match what was used to encrypt your ENC(...) values
       JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD}
-      SERVICES_WEB_URL: http://localhost= 8080/api
+      SERVICES_WEB_URL: http://localhost:8080/api
 
       # Keep local profile so H2 + create-drop is used
       SPRING_PROFILES_ACTIVE: local
