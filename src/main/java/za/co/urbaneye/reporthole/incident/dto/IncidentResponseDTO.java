@@ -20,4 +20,10 @@ public class IncidentResponseDTO {
     private double longitude;
     private String imageUrl;
     private UUID userId;
+    private int reportCount;
+    private int reporterCount;
+    private String locationAddress;
+    private boolean duplicate;
+    private boolean alreadyConfirmed;
+    private UUID existingIncidentId;
 }

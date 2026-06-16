@@ -12,4 +12,6 @@ public class IncidentRequestDTO {
     private double latitude;
     private double longitude;
     private String imageBase64;
+    private boolean forceCreate;
+    private String locationAddress;
 }

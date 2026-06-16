@@ -57,6 +57,12 @@ public class Incident {
     @Column(name = "INCIDENT_IMAGE_URL", length = 255)
     private String imageUrl;
 
+    @Column(name = "INCIDENT_LOCATION_ADDRESS", length = 300)
+    private String locationAddress;
+
+    @Column(name = "INCIDENT_REPORT_COUNT", nullable = false)
+    private int reportCount = 1;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_USER_ID", nullable = false)
     private User user;

@@ -1,23 +1,27 @@
-#Switch the below to JASYPT then share the details
 spring:
   datasource:
-    url: jdbc:h2:mem:reporthole;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: password
-  h2:
-    console:
-      enabled: true
+    url: jdbc:postgresql://reporthole-postgres:5432/reporthole
+    driver-class-name: org.postgresql.Driver
+    username: reporthole
+    password: ${POSTGRES_PASSWORD:reporthole}
   jpa:
     hibernate:
       ddl-auto: create-drop
-    database-platform: org.hibernate.dialect.H2Dialect
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
+    properties:
+      hibernate:
+        globally_quoted_identifiers: false
 
 services:
   web:
+    base-url: ${SERVICES_WEB_BASE_URL:}
     allowed:
       - http://localhost:3000
+      - https://localhost:3000
       - http://192.168.*:3000
+      - https://192.168.*:3000
       - http://10.*:3000
+      - https://10.*:3000
       - http://172.*:3000
+      - https://172.*:3000
