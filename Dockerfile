@@ -18,6 +18,10 @@ WORKDIR /app
 
 # Non-root user for security
 RUN addgroup --system reporthole && adduser --system --ingroup reporthole reporthole
+
+# Pre-create upload dir with correct ownership so the volume mount is writable
+RUN mkdir -p /app/uploads/incidents && chown -R reporthole:reporthole /app/uploads
+
 USER reporthole
 
 COPY --from=builder /app/target/*.jar app.jar
