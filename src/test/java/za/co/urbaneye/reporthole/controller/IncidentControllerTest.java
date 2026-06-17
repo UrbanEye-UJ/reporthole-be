@@ -48,14 +48,7 @@ class IncidentControllerTest {
     private Jwt jwt;
 
     private IncidentRequestDTO buildRequest() {
-        IncidentRequestDTO req = new IncidentRequestDTO();
-        req.setIncidentType(IssueType.POTHOLE);
-        req.setDescription("Big pothole");
-        req.setSource(IncidentSource.MANUAL);
-        req.setLatitude(-26.2041);
-        req.setLongitude(28.0473);
-        req.setImageBase64("base64data");
-        return req;
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null);
     }
 
     @Test

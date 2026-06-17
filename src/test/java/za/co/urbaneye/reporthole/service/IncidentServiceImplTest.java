@@ -76,14 +76,7 @@ class IncidentServiceImplTest {
     }
 
     private IncidentRequestDTO buildRequest() {
-        IncidentRequestDTO req = new IncidentRequestDTO();
-        req.setIncidentType(IssueType.POTHOLE);
-        req.setDescription("Big pothole on Main Road");
-        req.setSource(IncidentSource.MANUAL);
-        req.setLatitude(-26.2041);
-        req.setLongitude(28.0473);
-        req.setImageBase64("base64data");
-        return req;
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null);
     }
 
     @Test
@@ -108,10 +101,10 @@ class IncidentServiceImplTest {
 
         IncidentResponseDTO result = incidentService.createIncident(buildRequest());
 
-        assertThat(result.isDuplicate()).isFalse();
-        assertThat(result.getExistingIncidentId()).isNull();
-        assertThat(result.getIncidentType()).isEqualTo(IssueType.POTHOLE);
-        assertThat(result.getReporterCount()).isEqualTo(1);
+        assertThat(result.duplicate()).isFalse();
+        assertThat(result.existingIncidentId()).isNull();
+        assertThat(result.incidentType()).isEqualTo(IssueType.POTHOLE);
+        assertThat(result.reporterCount()).isEqualTo(1);
         verify(incidentRepository).save(any());
         verify(incidentReporterRepository).save(any());
     }
@@ -139,9 +132,9 @@ class IncidentServiceImplTest {
 
         IncidentResponseDTO result = incidentService.createIncident(buildRequest());
 
-        assertThat(result.isDuplicate()).isTrue();
-        assertThat(result.isAlreadyConfirmed()).isFalse();
-        assertThat(result.getExistingIncidentId()).isEqualTo(existingId);
+        assertThat(result.duplicate()).isTrue();
+        assertThat(result.alreadyConfirmed()).isFalse();
+        assertThat(result.existingIncidentId()).isEqualTo(existingId);
         verify(incidentRepository, never()).save(any());
         verify(imageStorageService, never()).saveBase64Image(any());
     }
@@ -172,9 +165,9 @@ class IncidentServiceImplTest {
         verify(incidentRepository).incrementReportCount(id);
         verify(incidentReporterRepository).save(any());
         verify(incidentSseService).pushIncidentUpdate(eq(id), eq(Set.of(USER_ID)));
-        assertThat(result.isDuplicate()).isTrue();
-        assertThat(result.getExistingIncidentId()).isEqualTo(id);
-        assertThat(result.getReporterCount()).isEqualTo(2);
+        assertThat(result.duplicate()).isTrue();
+        assertThat(result.existingIncidentId()).isEqualTo(id);
+        assertThat(result.reporterCount()).isEqualTo(2);
     }
 
     @Test
@@ -218,7 +211,7 @@ class IncidentServiceImplTest {
         List<IncidentResponseDTO> result = incidentService.getMyIncidents();
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().getIncidentType()).isEqualTo(IssueType.POTHOLE);
+        assertThat(result.getFirst().incidentType()).isEqualTo(IssueType.POTHOLE);
     }
 
     @Test
@@ -242,13 +235,13 @@ class IncidentServiceImplTest {
 
         IncidentResponseDTO result = incidentService.getIncidentById(id);
 
-        assertThat(result.getIncidentId()).isEqualTo(id);
-        assertThat(result.getIncidentType()).isEqualTo(IssueType.POTHOLE);
-        assertThat(result.getDescription()).isEqualTo("Deep pothole");
-        assertThat(result.getReportCount()).isEqualTo(3);
-        assertThat(result.getReporterCount()).isEqualTo(2);
-        assertThat(result.getImageUrl()).isEqualTo("http://img/test.jpg");
-        assertThat(result.isDuplicate()).isFalse();
+        assertThat(result.incidentId()).isEqualTo(id);
+        assertThat(result.incidentType()).isEqualTo(IssueType.POTHOLE);
+        assertThat(result.description()).isEqualTo("Deep pothole");
+        assertThat(result.reportCount()).isEqualTo(3);
+        assertThat(result.reporterCount()).isEqualTo(2);
+        assertThat(result.imageUrl()).isEqualTo("http://img/test.jpg");
+        assertThat(result.duplicate()).isFalse();
     }
 
     @Test

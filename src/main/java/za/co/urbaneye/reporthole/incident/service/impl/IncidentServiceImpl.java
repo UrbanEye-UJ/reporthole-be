@@ -46,14 +46,14 @@ public class IncidentServiceImpl implements IncidentService {
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserServiceException("User not found"));
         final Point point = geometryFactory.createPoint(
-                new Coordinate(request.getLongitude(), request.getLatitude())
+                new Coordinate(request.longitude(), request.latitude())
         );
 
-        Optional<Incident> nearestDuplicate = request.isForceCreate()
+        Optional<Incident> nearestDuplicate = request.forceCreate()
                 ? Optional.empty()
                 : incidentRepository.findNearestDuplicate(
-                        request.getLatitude(), request.getLongitude(),
-                        MANUAL_DUPLICATE_RADIUS_METRES, request.getIncidentType());
+                        request.latitude(), request.longitude(),
+                        MANUAL_DUPLICATE_RADIUS_METRES, request.incidentType());
 
         if (nearestDuplicate.isPresent()) {
             Incident existing = nearestDuplicate.get();
@@ -77,15 +77,15 @@ public class IncidentServiceImpl implements IncidentService {
                     .build();
         }
 
-        final String imageUrl = imageStorageService.saveBase64Image(request.getImageBase64());
+        final String imageUrl = imageStorageService.saveBase64Image(request.imageBase64());
         Incident incident = new Incident();
-        incident.setIncidentType(request.getIncidentType());
-        incident.setDescription(request.getDescription());
-        incident.setSource(request.getSource());
+        incident.setIncidentType(request.incidentType());
+        incident.setDescription(request.description());
+        incident.setSource(request.source());
         incident.setIncidentDate(LocalDateTime.now());
         incident.setLocation(point);
         incident.setImageUrl(imageUrl);
-        incident.setLocationAddress(request.getLocationAddress());
+        incident.setLocationAddress(request.locationAddress());
         incident.setUser(user);
         final Incident saved = incidentRepository.save(incident);
         incidentReporterRepository.save(new IncidentReporter(saved, user));
