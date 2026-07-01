@@ -1,21 +1,19 @@
 package za.co.urbaneye.reporthole.controller;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import za.co.urbaneye.reporthole.device.controller.DeviceController;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
-import za.co.urbaneye.reporthole.device.service.interfaces.IDeviceService;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
+import za.co.urbaneye.reporthole.device.service.interfaces.IDeviceService;
 import za.co.urbaneye.reporthole.security.Jwt;
 
 import java.util.List;
@@ -27,13 +25,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Unit tests for {@link DeviceController} using {@link WebMvcTest} with
- * filters disabled.
+ * Unit tests for {@link DeviceController} using {@link WebMvcTest} with filters disabled.
+ *
+ * <p>Authentication is injected via a custom {@link RequestPostProcessor} that sets
+ * {@code SecurityContextHolder} at request-dispatch time rather than in {@code @BeforeEach}.
+ * This is reliable on CI because the post-processor runs on the same thread that
+ * MockMvc uses to process the request, avoiding the {@code ThreadLocal} inheritance
+ * issue that causes {@code @BeforeEach}-based setup to fail on pooled-thread environments.</p>
  *
  * <p>Security enforcement (device tokens rejected on {@code /devices/**}) is
- * covered by the integration test. These tests verify that the endpoint
- * serialises the service response correctly when a valid authentication
- * is already in the security context.</p>
+ * covered by {@link za.co.urbaneye.reporthole.integration.DeviceIntegrationTest}.</p>
  */
 @WebMvcTest(DeviceController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -57,22 +58,20 @@ class DeviceControllerTest {
     private static final String FAKE_TOKEN = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
     /**
-     * Manually places a String-principal authentication in the security context,
-     * matching what {@link za.co.urbaneye.reporthole.security.JwtAuthenticationFilter}
-     * sets up when it validates a real JWT.
+     * Returns a {@link RequestPostProcessor} that sets a CIVILIAN-role authentication
+     * on the dispatch thread's {@code SecurityContextHolder}, matching what
+     * {@link za.co.urbaneye.reporthole.security.JwtAuthenticationFilter} sets for a valid JWT.
      */
-    @BeforeEach
-    void setUpSecurityContext() {
-        Authentication auth = new UsernamePasswordAuthenticationToken(
-                USER_ID.toString(), null,
-                List.of(new SimpleGrantedAuthority("ROLE_CIVILIAN"))
-        );
-        SecurityContextHolder.getContext().setAuthentication(auth);
-    }
-
-    @AfterEach
-    void clearSecurityContext() {
-        SecurityContextHolder.clearContext();
+    private RequestPostProcessor civilianAuth() {
+        return request -> {
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken(
+                            USER_ID.toString(), null,
+                            List.of(new SimpleGrantedAuthority("ROLE_CIVILIAN"))
+                    )
+            );
+            return request;
+        };
     }
 
     @Test
@@ -80,9 +79,9 @@ class DeviceControllerTest {
         when(deviceService.generateToken(USER_ID.toString()))
                 .thenReturn(new DeviceTokenResponse(FAKE_TOKEN));
 
-        mockMvc.perform(post("/devices/token/generate"))
+        mockMvc.perform(post("/devices/token/generate")
+                        .with(civilianAuth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deviceToken").value(FAKE_TOKEN));
     }
-
 }
