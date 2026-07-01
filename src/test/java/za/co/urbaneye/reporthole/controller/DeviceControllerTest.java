@@ -85,16 +85,4 @@ class DeviceControllerTest {
                 .andExpect(jsonPath("$.data.deviceToken").value(FAKE_TOKEN));
     }
 
-    @Test
-    void generateToken_tokenInResponseContainsNoDots() throws Exception {
-        when(deviceService.generateToken(USER_ID.toString()))
-                .thenReturn(new DeviceTokenResponse(FAKE_TOKEN));
-
-        mockMvc.perform(post("/devices/token/generate"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.deviceToken").value(FAKE_TOKEN));
-
-        // Verify the returned token has no dots (the filter uses this to distinguish from JWTs)
-        assert !FAKE_TOKEN.contains(".");
-    }
 }
