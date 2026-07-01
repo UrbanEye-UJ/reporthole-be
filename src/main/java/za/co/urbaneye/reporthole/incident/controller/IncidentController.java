@@ -48,7 +48,7 @@ public class IncidentController {
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> createIncident(@RequestBody IncidentRequestDTO request) {
         IncidentResponseDTO result = incidentService.createIncident(request);
-        if (result.isDuplicate()) {
+        if (result.duplicate()) {
             return ResponseEntity.ok(AppResponse.of(result, "A similar incident was found nearby. Please confirm if this is the same issue.", 200));
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(AppResponse.created(result));

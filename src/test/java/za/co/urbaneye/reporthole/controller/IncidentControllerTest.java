@@ -8,6 +8,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.incident.controller.IncidentController;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
@@ -47,15 +48,12 @@ class IncidentControllerTest {
     @MockitoBean
     private Jwt jwt;
 
+    /** Required by the updated JwtAuthenticationFilter which now also handles device tokens. */
+    @MockitoBean
+    private DashcamDeviceRepository dashcamDeviceRepository;
+
     private IncidentRequestDTO buildRequest() {
-        IncidentRequestDTO req = new IncidentRequestDTO();
-        req.setIncidentType(IssueType.POTHOLE);
-        req.setDescription("Big pothole");
-        req.setSource(IncidentSource.MANUAL);
-        req.setLatitude(-26.2041);
-        req.setLongitude(28.0473);
-        req.setImageBase64("base64data");
-        return req;
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null);
     }
 
     @Test

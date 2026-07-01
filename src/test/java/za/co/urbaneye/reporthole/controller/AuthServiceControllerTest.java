@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.user.controller.AuthServiceController;
 import za.co.urbaneye.reporthole.user.dto.AuthResponse;
@@ -34,7 +35,11 @@ class AuthServiceControllerTest {
     private IUserAuthService service;
 
     @MockitoBean
-    private Jwt jwt; // satisfies JwtAuthenticationFilter's constructor dependency
+    private Jwt jwt;
+
+    /** Required by the updated JwtAuthenticationFilter which now also handles device tokens. */
+    @MockitoBean
+    private DashcamDeviceRepository dashcamDeviceRepository;
 
 
     @Autowired

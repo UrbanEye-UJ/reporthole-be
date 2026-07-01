@@ -126,7 +126,7 @@ public class IUserAuthServiceImpl implements IUserAuthService {
 
         } else if (!encoder.matches(user.password(), savedUser.get().getPassword())) {
             log.info("Passwords don't match");
-            throw new UserServiceException("Incorrect password");
+            throw new UserServiceException("Incorrect login credentials");
         }
 
         final User found = savedUser.get();

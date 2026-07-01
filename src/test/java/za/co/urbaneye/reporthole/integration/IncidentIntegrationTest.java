@@ -67,16 +67,14 @@ class IncidentIntegrationTest {
     }
 
     private String createIncidentAndGetId() {
-        IncidentRequestDTO req = new IncidentRequestDTO();
-        req.setIncidentType(IssueType.POTHOLE);
-        req.setDescription("Integration test pothole");
-        req.setSource(IncidentSource.MANUAL);
-        req.setLatitude(-26.2041);
-        req.setLongitude(28.0473);
         // forceCreate=true skips the ST_DWithin duplicate check (PostGIS function, not available in H2)
-        req.setForceCreate(true);
         // Minimal valid 1x1 white PNG, plain base64 (no data URI prefix)
-        req.setImageBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==");
+        IncidentRequestDTO req = new IncidentRequestDTO(
+                IssueType.POTHOLE, "Integration test pothole", IncidentSource.MANUAL,
+                -26.2041, 28.0473,
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
+                true, null
+        );
 
         ResponseEntity<Map> resp = restTemplate.exchange(
                 base("/incidents/create"),
