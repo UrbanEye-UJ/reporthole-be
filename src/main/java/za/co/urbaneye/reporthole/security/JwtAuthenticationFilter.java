@@ -154,8 +154,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                              HttpServletRequest request,
                                              HttpServletResponse response,
                                              FilterChain filterChain) throws IOException, ServletException {
-        // Device tokens are scoped to incident creation only
-        if (!request.getRequestURI().startsWith("/incidents/")) {
+        // Device tokens are scoped to incident creation only.
+        // getServletPath() returns the path after the context-path prefix (/api/),
+        // so "/api/incidents/create" becomes "/incidents/create" here.
+        if (!request.getServletPath().startsWith("/incidents/")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Device token not accepted for this endpoint");
             return;
