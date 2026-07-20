@@ -1,8 +1,9 @@
 spring:
   datasource:
-    url: ENC(your-encrypted-value-here)
-    username: ENC(your-encrypted-value-here)
-    password: ENC(your-encrypted-value-here)
+    url: jdbc:postgresql://localhost:5432/reporthole
+    driver-class-name: org.postgresql.Driver
+    username: reporthole
+    password: ${POSTGRES_PASSWORD:reporthole}
 
   jpa:
     hibernate:

@@ -85,6 +85,8 @@ public class SecurityConfig {
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**","/actuator/**").permitAll()
                     .requestMatchers("/uploads/**").permitAll()
                     .requestMatchers("/h2-console/**").permitAll()
+                    // Inference endpoint is called server-side from Next.js — no user auth context available
+                    .requestMatchers("/inference/**").permitAll()
                     .requestMatchers("/incidents/**").authenticated()
                     .anyRequest().authenticated()
             )
