@@ -9,6 +9,10 @@ spring:
     name: reporthole-be
   profiles:
     active: local
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 logging:
   level:
@@ -38,3 +42,8 @@ app:
   upload:
     dir: uploads/incidents
   base-url: http://localhost:8080/api
+
+inference:
+  model-path: classpath:models/Reporthole-v1.onnx
+  discard-threshold: 0.65
+  auto-log-threshold: 0.80
