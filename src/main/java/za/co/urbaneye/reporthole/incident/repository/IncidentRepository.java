@@ -15,7 +15,7 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
 
     List<Incident> findByUser_UserId(UUID userId);
 
-    @Query("SELECT DISTINCT i FROM Incident i LEFT JOIN IncidentReporter ir ON ir.incident = i WHERE i.user.userId = :userId OR ir.user.userId = :userId")
+    @Query("SELECT DISTINCT i FROM Incident i LEFT JOIN IncidentReporter ir ON ir.incident = i WHERE (i.user.userId = :userId OR ir.user.userId = :userId) AND i.deleted = false")
     List<Incident> findAllReportedByUser(@Param("userId") UUID userId);
 
     /**
@@ -31,6 +31,7 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
                 :radiusMeters
             )
             AND INCIDENT_TYPE = :#{#issueType.name()}
+            AND INCIDENT_DELETED = false
             ORDER BY ST_Distance(
                 ST_SetSRID(INCIDENT_LOCATION, 4326)::geography,
                 ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
@@ -43,6 +44,26 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
             @Param("radiusMeters") double radiusMeters,
             @Param("issueType") IssueType issueType
     );
+
+    /**
+     * Filters the authenticated user's incidents by a free-text keyword (matched against
+     * description and location address) and/or by issue type. Null parameters are treated
+     * as "no filter" so the query works when either or both params are omitted.
+     */
+    @Query("""
+            SELECT DISTINCT i FROM Incident i
+            LEFT JOIN IncidentReporter ir ON ir.incident = i
+            WHERE (i.user.userId = :userId OR ir.user.userId = :userId)
+              AND i.deleted = false
+              AND (:keyword IS NULL
+                   OR LOWER(i.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                   OR LOWER(i.locationAddress) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:issueType IS NULL OR i.incidentType = :issueType)
+            """)
+    List<Incident> searchByUser(
+            @Param("userId") UUID userId,
+            @Param("keyword") String keyword,
+            @Param("issueType") IssueType issueType);
 
     @Modifying
     @Query("UPDATE Incident i SET i.reportCount = i.reportCount + 1 WHERE i.incidentId = :id")

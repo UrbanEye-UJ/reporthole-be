@@ -53,13 +53,13 @@ class DeviceIntegrationTest {
         String email = "device_test_" + UUID.randomUUID() + "@mail.com";
         restTemplate.postForEntity(
                 base("/auth/register"),
-                new RegisterRequest("Device", "Tester", email, UserRole.CIVILIAN, "pass", "0700000000"),
+                new RegisterRequest("Device", "Tester", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000"),
                 Void.class
         );
 
         ResponseEntity<Map> loginResp = restTemplate.postForEntity(
                 base("/auth/login"),
-                new LoginRequest(email, "pass"),
+                new LoginRequest(email, "Test@Pass1"),
                 Map.class
         );
         assertEquals(HttpStatus.OK, loginResp.getStatusCode());

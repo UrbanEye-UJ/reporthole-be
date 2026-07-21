@@ -3,6 +3,7 @@ package za.co.urbaneye.reporthole.user.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +29,7 @@ import java.util.UUID;
  * @since 1.0
  */
 @Repository
-public interface IUserAuthRepository extends JpaRepository<User, UUID> {
+public interface IUserAuthRepository extends JpaRepository<UserAuth, UUID> {
 
     /**
      * Checks whether a user exists with the given email address.
@@ -52,5 +53,9 @@ public interface IUserAuthRepository extends JpaRepository<User, UUID> {
      * @return optional containing the matching user if found,
      * otherwise empty
      */
-    Optional<User> findByEmailHash(String emailHash);
+    Optional<UserAuth> findByEmailHash(String emailHash);
+
+    Optional<UserAuth> findByVerificationToken(String verificationToken);
+
+    Optional<UserAuth> findByPasswordResetToken(String passwordResetToken);
 }

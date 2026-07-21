@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import za.co.urbaneye.reporthole.security.SecretUtil;
-import za.co.urbaneye.reporthole.user.entity.User;
-import za.co.urbaneye.reporthole.user.entity.UserRole;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
+import za.co.urbaneye.reporthole.user.entity.UserStatus;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 
 import java.util.Optional;
@@ -21,18 +21,17 @@ class IUserAuthRepositoryTest {
     @Test
     void shouldFindByEmailHash() {
 
-        User user = User.builder()
-                .firstName("John")
-                .lastName("Doe")
+        UserAuth user = UserAuth.builder()
                 .email("john@mail.com")
                 .emailHash(SecretUtil.hashEmail("john@mail.com"))
                 .password("123")
-                .role(UserRole.CIVILIAN)
+                .status(UserStatus.ACTIVE)
+                .retries(0)
                 .build();
 
         repository.save(user);
 
-        Optional<User> found =
+        Optional<UserAuth> found =
                 repository.findByEmailHash(SecretUtil.hashEmail("john@mail.com"));
 
         assertTrue(found.isPresent());

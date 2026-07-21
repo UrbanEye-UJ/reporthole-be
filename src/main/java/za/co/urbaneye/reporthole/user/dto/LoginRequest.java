@@ -1,5 +1,8 @@
 package za.co.urbaneye.reporthole.user.dto;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
 /**
  * Data Transfer Object (DTO) representing a user login request.
  *
@@ -22,7 +25,11 @@ package za.co.urbaneye.reporthole.user.dto;
  * @since 1.0
  */
 public record LoginRequest(
+        @NotBlank(message = "Email is required")
+        @Email(message = "Email must be a valid address")
         String email,
+
+        @NotBlank(message = "Password is required")
         String password
 ) {
 }

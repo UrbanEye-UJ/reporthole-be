@@ -1,15 +1,26 @@
 spring:
   datasource:
     url: ENC(your-encrypted-value-here)
-    username: ENC(your-encrypted-value-here)
-    password: ENC(your-encrypted-value-here)
-
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
-
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: reporthole.noreply@gmail.com
+    password: ENC(jasypt-encrypted-app-password)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+#
 #services:
-#  web:
-#    allowed: ${SERVICES_WEB_ALLOWED_ORIGINS}
+##  web:
+##    allowed: ${SERVICES_WEB_ALLOWED_ORIGINS}
+

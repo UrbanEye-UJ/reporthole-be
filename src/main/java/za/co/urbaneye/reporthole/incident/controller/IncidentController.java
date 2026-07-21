@@ -10,12 +10,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -46,7 +50,7 @@ public class IncidentController {
             @ApiResponse(responseCode = "200", description = "Potential duplicate found — client should prompt user to confirm"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<AppResponse<IncidentResponseDTO>> createIncident(@RequestBody IncidentRequestDTO request) {
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> createIncident(@Valid @RequestBody IncidentRequestDTO request) {
         IncidentResponseDTO result = incidentService.createIncident(request);
         if (result.duplicate()) {
             return ResponseEntity.ok(AppResponse.of(result, "A similar incident was found nearby. Please confirm if this is the same issue.", 200));
@@ -74,6 +78,23 @@ public class IncidentController {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getMyIncidents()));
     }
 
+    @GetMapping("/my/search")
+    @Operation(
+            summary = "Search my incidents",
+            description = "Filters the authenticated user's incidents by a free-text keyword (matched against " +
+                    "description and location address) and/or by issue type. Omit either parameter to skip that filter."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Filtered list returned (may be empty)"),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated")
+    })
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> searchMyIncidents(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) IssueType type) {
+        log.info("Search request — keyword: '{}', type: {}", keyword, type);
+        return ResponseEntity.ok(AppResponse.ok(incidentService.searchMyIncidents(keyword, type)));
+    }
+
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(
             summary = "SSE stream",
@@ -96,5 +117,17 @@ public class IncidentController {
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> getIncidentById(@PathVariable UUID id) {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentById(id)));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete incident", description = "Soft-deletes an incident. Only the original reporter may delete their own incident.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Incident deleted"),
+            @ApiResponse(responseCode = "403", description = "Not the original reporter"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<Void> deleteIncident(@PathVariable UUID id) {
+        incidentService.deleteIncident(id);
+        return ResponseEntity.noContent().build();
     }
 }

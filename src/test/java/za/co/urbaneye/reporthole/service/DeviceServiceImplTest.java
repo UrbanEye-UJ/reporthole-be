@@ -13,7 +13,7 @@ import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.device.service.impl.DeviceServiceImpl;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -37,7 +37,7 @@ class DeviceServiceImplTest {
     private DashcamDeviceRepository deviceRepository;
 
     @Mock
-    private IUserAuthRepository userRepository;
+    private IUserRepository userRepository;
 
     @InjectMocks
     private DeviceServiceImpl deviceService;

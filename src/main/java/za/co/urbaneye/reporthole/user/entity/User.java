@@ -57,7 +57,6 @@ public class User {
      * Unique identifier for the user.
      */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "USER_ID", updatable = false, nullable = false)
     private UUID userId;
 
@@ -75,25 +74,6 @@ public class User {
     @Convert(converter = Aes.class)
     private String lastName;
 
-    /**
-     * User's email address (encrypted).
-     */
-    @Column(name = "USER_EMAIL", nullable = false, unique = true)
-    @Convert(converter = Aes.class)
-    private String email;
-
-    /**
-     * Deterministic hash of the email used for secure lookup and uniqueness checks.
-     */
-    @Column(name = "USER_EMAIL_HASH", nullable = false, unique = true)
-    private String emailHash;
-
-    /**
-     * User password value (encrypted / stored securely).
-     */
-    @Column(name = "USER_HASH", nullable = false, length = 255)
-    @Convert(converter = Aes.class)
-    private String password;
 
     /**
      * User contact phone number (encrypted).

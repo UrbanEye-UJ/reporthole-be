@@ -1,15 +1,32 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/reporthole
     driver-class-name: org.postgresql.Driver
-    username: reporthole
-    password: ${POSTGRES_PASSWORD:reporthole}
-
+    url: ENC(your-encrypted-value-here)
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: reporthole.noreply@gmail.com
+    password: ENC(jasypt-encrypted-app-password)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
+
+mail:
+  from: reporthole.noreply@gmail.com
+  verification-url: https://reporthole.app/verify?token=
+  verification-subject: "Verify your Reporthole account"
+  password-reset-url: https://reporthole.app/reset-password?token=
+  password-reset-subject: "Reset your Reporthole password"
 
 services:
   web:
@@ -17,4 +34,3 @@ services:
       - http://localhost:3000
       - http://192.168.*:3000
       - http://10.*:3000
-      - http://172.*:3000
