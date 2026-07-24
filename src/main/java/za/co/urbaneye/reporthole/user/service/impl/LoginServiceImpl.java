@@ -9,10 +9,13 @@ import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
-import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
+import za.co.urbaneye.reporthole.user.entity.UserStatus;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserRepository;
+import za.co.urbaneye.reporthole.user.service.interfaces.ILoginService;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserAuthService;
 
 import java.util.Optional;
@@ -38,13 +41,14 @@ import java.util.Optional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class IUserAuthServiceImpl implements IUserAuthService {
+public class LoginServiceImpl implements ILoginService {
 
     /**
-     * Repository for user persistence operations.
+     * Repository for auth persistence operations.
      */
-    private final IUserAuthRepository repository;
+    private final IUserAuthRepository authRepository;
 
+    private final IUserRepository userRepository;
     /**
      * Mapper for converting DTOs to entities.
      */
@@ -59,42 +63,6 @@ public class IUserAuthServiceImpl implements IUserAuthService {
      * JWT utility for token generation.
      */
     private final Jwt jwt;
-
-    /**
-     * Registers a new user account.
-     *
-     * <p>Steps performed:</p>
-     * <ul>
-     *     <li>Checks whether the user already exists</li>
-     *     <li>Maps request DTO to entity</li>
-     *     <li>Generates email hash</li>
-     *     <li>Hashes password</li>
-     *     <li>Saves user to the database</li>
-     * </ul>
-     *
-     * @param user registration request details
-     * @throws UserServiceException if registration fails
-     */
-    @Override
-    public void registerUser(RegisterRequest user) {
-        try {
-            log.info("Registering user");
-
-            if (repository.existsDistinctByEmail(user.email())) {
-                throw new UserServiceException("User already exists");
-            }
-
-            final User userEntity = mapper.toEntity(user);
-            userEntity.setEmailHash(SecretUtil.hashEmail(user.email()));
-            userEntity.setPassword(encoder.encode(user.password()));
-
-            repository.save(userEntity);
-
-        } catch (final Exception ex) {
-            log.error(ex.getMessage(), ex);
-            throw new UserServiceException(ex.getMessage());
-        }
-    }
 
     /**
      * Authenticates a user and returns a JWT token.
@@ -118,18 +86,44 @@ public class IUserAuthServiceImpl implements IUserAuthService {
 
         final String emailHash = SecretUtil.hashEmail(user.email());
         log.debug("Looking up user by email hash: {}", emailHash);
-        final Optional<User> savedUser = repository.findByEmailHash(emailHash);
+        final Optional<UserAuth> savedUserAuth = authRepository.findByEmailHash(emailHash);
 
-        if (!savedUser.isPresent()) {
+        if (!savedUserAuth.isPresent()) {
             log.info("User with email {} not found", emailHash);
             throw new UserServiceException("User not found");
 
-        } else if (!encoder.matches(user.password(), savedUser.get().getPassword())) {
-            log.info("Passwords don't match");
-            throw new UserServiceException("Incorrect login credentials");
         }
 
-        final User found = savedUser.get();
+        final UserAuth userAuth = savedUserAuth.get();
+
+        if (userAuth.getStatus().equals(UserStatus.DELETED)) {
+            // treat deleted account same as not found to avoid leaking account existence
+            throw new UserServiceException("User not found");
+        } else if (userAuth.getStatus().equals(UserStatus.PENDING_VERIFICATION)) {
+            log.info("User email {} not verified", emailHash);
+            throw new UserServiceException("User not verified");
+        } else if (userAuth.getStatus().equals(UserStatus.LOCKED)) {
+            log.info("User with email {} locked", emailHash);
+            throw new UserServiceException("User account locked");
+        }
+        else if (!encoder.matches(user.password(), userAuth.getPassword())) {
+            userAuth.setRetries(userAuth.getRetries() + 1);
+            if (userAuth.getRetries() >= 3) {
+                userAuth.setStatus(UserStatus.LOCKED);
+                authRepository.save(userAuth);
+                log.warn("User {} locked after {} failed attempts", emailHash, userAuth.getRetries());
+                throw new UserServiceException("Too many failed attempts. Your account has been locked. Please reset your password.");
+            }
+            authRepository.save(userAuth);
+            int remaining = 3 - userAuth.getRetries();
+            log.info("Failed login for {}. {} attempt(s) remaining.", emailHash, remaining);
+            throw new UserServiceException(String.format("Incorrect login credentials. %d attempt(s) remaining before lockout.", remaining));
+        }
+
+        userAuth.setRetries(0);
+        authRepository.save(userAuth);
+
+        final User found = userRepository.findById(userAuth.getAuthId()).get();
         final String token = jwt.generateToken(found.getUserId(), found.getRole());
 
         return new AuthResponse(token, found.getRole(), found.getUserId());

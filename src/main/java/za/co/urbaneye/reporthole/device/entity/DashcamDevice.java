@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

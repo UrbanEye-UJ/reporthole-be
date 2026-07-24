@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.locationtech.jts.geom.Point;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -62,6 +63,9 @@ public class Incident {
 
     @Column(name = "INCIDENT_REPORT_COUNT", nullable = false)
     private int reportCount = 1;
+
+    @Column(name = "INCIDENT_DELETED", nullable = false)
+    private boolean deleted = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_USER_ID", nullable = false)

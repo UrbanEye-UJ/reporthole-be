@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -43,6 +44,7 @@ import java.util.List;
  * @author Refentse
  * @since 1.0
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -70,21 +72,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        log.info("[JWT-FILTER] {} {}", request.getMethod(), request.getServletPath());
+
         String authHeader = request.getHeader("Authorization");
         String token;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7);
         } else {
-            // Fallback: allow JWT as query param for SSE connections (EventSource can't set headers)
+            String servletPath = request.getServletPath();
             String queryToken = request.getParameter("token");
-            if (queryToken == null || queryToken.isBlank()) {
-                filterChain.doFilter(request, response);
+            log.info("[JWT-FILTER] No auth header — path={} hasQueryToken={}", servletPath, queryToken != null);
+            if (servletPath.endsWith("/incidents/events") && queryToken != null && !queryToken.isBlank()) {
+                log.info("[JWT-FILTER] SSE fallback: authenticating via ?token=");
+                authenticateWithJwt(queryToken, response, filterChain, request);
                 return;
             }
-            token = queryToken;
-            // SSE fallback only supports JWTs — fall through to JWT validation below
-            authenticateWithJwt(token, response, filterChain, request);
+            log.info("[JWT-FILTER] No token — passing through unauthenticated");
+            filterChain.doFilter(request, response);
             return;
         }
 

@@ -1,0 +1,72 @@
+services:
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: reporthole-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    env_file:
+      - .env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - reporthole-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d reporthole"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: reporthole-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - reporthole-net
+
+  app:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reporthole-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD}
+      SERVICES_WEB_BASE_URL: ${SERVICES_WEB_BASE_URL:-http://localhost:8080/api}
+      POSTGRES_USERNAME: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://reporthole-postgres:5432/reporthole
+      SPRING_MAIL_HOST: reporthole-mailhog
+      SPRING_MAIL_PORT: 1025
+    volumes:
+      - uploads-data:/app/uploads/incidents
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - reporthole-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+volumes:
+  postgres-data:
+  uploads-data:
+
+networks:
+  reporthole-net:
+    name: reporthole-net
+    driver: bridge

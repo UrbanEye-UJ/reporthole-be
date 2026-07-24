@@ -1,7 +1,6 @@
 package za.co.urbaneye.reporthole.device.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.entity.DashcamDevice;
@@ -9,7 +8,9 @@ import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.device.service.interfaces.IDeviceService;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
 import java.util.UUID;
 
@@ -29,7 +30,7 @@ import java.util.UUID;
 public class DeviceServiceImpl implements IDeviceService {
 
     private final DashcamDeviceRepository deviceRepository;
-    private final IUserAuthRepository userRepository;
+    private final IUserRepository userAuthRepository;
 
     /**
      * Generates a new device token for the currently authenticated user.
@@ -46,7 +47,7 @@ public class DeviceServiceImpl implements IDeviceService {
      */
     @Override
     public DeviceTokenResponse generateToken(String userId) {
-        User user = userRepository.findById(UUID.fromString(userId))
+        User user = userAuthRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new DeviceServiceException("User not found: " + userId));
 
         // UUID.randomUUID() produces a token with no dots, distinguishing it

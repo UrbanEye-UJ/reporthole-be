@@ -24,7 +24,7 @@ import java.util.Set;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,7 +49,7 @@ class IncidentServiceImplTest {
     private IncidentSseService incidentSseService;
 
     @Mock
-    private IUserAuthRepository userRepository;
+    private IUserRepository userRepository;
 
     @Mock
     private ImageStorageService imageStorageService;

@@ -2,7 +2,8 @@
 -- Creates the reporthole database and enables the PostGIS extension.
 
 SELECT 'CREATE DATABASE reporthole'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'reporthole')\gexec
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'reporthole')
+\gexec
 
 \c reporthole
 

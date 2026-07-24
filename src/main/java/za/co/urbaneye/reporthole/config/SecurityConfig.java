@@ -1,7 +1,6 @@
-package za.co.urbaneye.reporthole.security;
+package za.co.urbaneye.reporthole.config;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import za.co.urbaneye.reporthole.config.WebProperties;
+import za.co.urbaneye.reporthole.security.JwtAuthenticationFilter;
 
 import java.util.List;
 
@@ -82,9 +81,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers("/auth/**").permitAll()
-                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**","/actuator/**").permitAll()
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/actuator/**").permitAll()
                     .requestMatchers("/uploads/**").permitAll()
-                    .requestMatchers("/h2-console/**").permitAll()
                     // Inference endpoint is called server-side from Next.js — no user auth context available
                     .requestMatchers("/inference/**").permitAll()
                     .requestMatchers("/incidents/**").authenticated()

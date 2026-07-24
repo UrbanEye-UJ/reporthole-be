@@ -24,20 +24,5 @@ import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
  */
 public interface IUserAuthService {
 
-    /**
-     * Registers a new user account in the system.
-     *
-     * @param user registration request containing
-     *             user details and credentials
-     */
-    void registerUser(final RegisterRequest user);
 
-    /**
-     * Authenticates a user and returns an access token.
-     *
-     * @param user login request containing
-     *             credentials
-     * @return authentication response containing token and role
-     */
-    AuthResponse loginUser(final LoginRequest user);
 }

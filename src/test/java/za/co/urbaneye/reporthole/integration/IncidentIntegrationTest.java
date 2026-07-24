@@ -41,13 +41,13 @@ class IncidentIntegrationTest {
         String email = "incident_test_" + UUID.randomUUID() + "@mail.com";
         restTemplate.postForEntity(
                 base("/auth/register"),
-                new RegisterRequest("Test", "User", email, UserRole.CIVILIAN, "pass", "0700000000"),
+                new RegisterRequest("Test", "User", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000"),
                 Void.class
         );
 
         ResponseEntity<Map> loginResp = restTemplate.postForEntity(
                 base("/auth/login"),
-                new LoginRequest(email, "pass"),
+                new LoginRequest(email, "Test@Pass1"),
                 Map.class
         );
         assertEquals(HttpStatus.OK, loginResp.getStatusCode());
@@ -132,5 +132,66 @@ class IncidentIntegrationTest {
         );
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp.getStatusCode());
+    }
+
+    @Test
+    void searchMyIncidents_returnsMatchingIncidents_whenKeywordMatches() {
+        createIncidentAndGetId(); // description = "Integration test pothole"
+
+        ResponseEntity<Map> resp = restTemplate.exchange(
+                base("/incidents/my/search?keyword=Integration"),
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        java.util.List<?> data = (java.util.List<?>) resp.getBody().get("data");
+        assertFalse(data.isEmpty(), "Expected at least one result for keyword 'Integration'");
+    }
+
+    @Test
+    void searchMyIncidents_returnsEmpty_whenKeywordDoesNotMatch() {
+        createIncidentAndGetId();
+
+        ResponseEntity<Map> resp = restTemplate.exchange(
+                base("/incidents/my/search?keyword=zzznomatch"),
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        java.util.List<?> data = (java.util.List<?>) resp.getBody().get("data");
+        assertTrue(data.isEmpty(), "Expected empty result for non-matching keyword");
+    }
+
+    @Test
+    void searchMyIncidents_returnsMatchingIncidents_whenTypeMatches() {
+        createIncidentAndGetId(); // type = POTHOLE
+
+        ResponseEntity<Map> resp = restTemplate.exchange(
+                base("/incidents/my/search?type=POTHOLE"),
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        java.util.List<?> data = (java.util.List<?>) resp.getBody().get("data");
+        assertFalse(data.isEmpty(), "Expected at least one POTHOLE result");
+    }
+
+    @Test
+    void searchMyIncidents_returnsUnauthorizedOrForbidden_whenUnauthenticated() {
+        ResponseEntity<String> resp = restTemplate.getForEntity(
+                base("/incidents/my/search?keyword=test"),
+                String.class
+        );
+
+        assertTrue(
+                resp.getStatusCode() == HttpStatus.UNAUTHORIZED || resp.getStatusCode() == HttpStatus.FORBIDDEN,
+                "Expected 401 or 403 but got: " + resp.getStatusCode()
+        );
     }
 }

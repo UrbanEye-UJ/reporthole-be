@@ -12,6 +12,7 @@ import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IncidentReporter;
+import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.incident.repository.IncidentRepository;
 import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
@@ -19,6 +20,7 @@ import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -33,7 +35,7 @@ public class IncidentServiceImpl implements IncidentService {
 
     private final IncidentRepository incidentRepository;
     private final IncidentReporterRepository incidentReporterRepository;
-    private final IUserAuthRepository userRepository;
+    private final IUserRepository userRepository;
     private final ImageStorageService imageStorageService;
     private final IncidentSseService incidentSseService;
 
@@ -43,6 +45,7 @@ public class IncidentServiceImpl implements IncidentService {
     @Override
     public IncidentResponseDTO createIncident(IncidentRequestDTO request) {
         final UUID userId = currentUserId();
+        //TODO Read User from cache this is not viable to check user everytim on db
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserServiceException("User not found"));
         final Point point = geometryFactory.createPoint(
@@ -144,21 +147,17 @@ public class IncidentServiceImpl implements IncidentService {
     public List<IncidentResponseDTO> getMyIncidents() {
         final UUID userId = currentUserId();
         return incidentRepository.findAllReportedByUser(userId).stream()
-                .map(incident -> IncidentResponseDTO.builder()
-                        .incidentId(incident.getIncidentId())
-                        .incidentType(incident.getIncidentType())
-                        .description(incident.getDescription())
-                        .source(incident.getSource())
-                        .incidentDate(incident.getIncidentDate())
-                        .latitude(incident.getLocation().getY())
-                        .longitude(incident.getLocation().getX())
-                        .imageUrl(incident.getImageUrl())
-                        .locationAddress(incident.getLocationAddress())
-                        .userId(userId)
-                        .reportCount(incident.getReportCount())
-                        .reporterCount(incidentReporterRepository.countByIncident_IncidentId(incident.getIncidentId()))
-                        .duplicate(false)
-                        .build())
+                .map(incident -> toResponseDTO(incident, userId))
+                .toList();
+    }
+
+    @Override
+    public List<IncidentResponseDTO> searchMyIncidents(String keyword, IssueType issueType) {
+        final UUID userId = currentUserId();
+        // Blank keyword treated as no keyword filter
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        return incidentRepository.searchByUser(userId, kw, issueType).stream()
+                .map(incident -> toResponseDTO(incident, userId))
                 .toList();
     }
 
@@ -180,6 +179,37 @@ public class IncidentServiceImpl implements IncidentService {
                 .userId(incident.getUser().getUserId())
                 .reportCount(incident.getReportCount())
                 .reporterCount(reporterCount)
+                .duplicate(false)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void deleteIncident(UUID incidentId) {
+        final UUID userId = currentUserId();
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new RuntimeException("Incident not found: " + incidentId));
+        if (!incident.getUser().getUserId().equals(userId)) {
+            throw new UserServiceException("You can only delete your own incidents");
+        }
+        incident.setDeleted(true);
+        incidentRepository.save(incident);
+    }
+
+    private IncidentResponseDTO toResponseDTO(Incident incident, UUID userId) {
+        return IncidentResponseDTO.builder()
+                .incidentId(incident.getIncidentId())
+                .incidentType(incident.getIncidentType())
+                .description(incident.getDescription())
+                .source(incident.getSource())
+                .incidentDate(incident.getIncidentDate())
+                .latitude(incident.getLocation().getY())
+                .longitude(incident.getLocation().getX())
+                .imageUrl(incident.getImageUrl())
+                .locationAddress(incident.getLocationAddress())
+                .userId(userId)
+                .reportCount(incident.getReportCount())
+                .reporterCount(incidentReporterRepository.countByIncident_IncidentId(incident.getIncidentId()))
                 .duplicate(false)
                 .build();
     }
