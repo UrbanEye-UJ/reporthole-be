@@ -106,7 +106,3 @@ log/
 *.mv.db
 *.trace.db
 
-# ===========================
-# ONNX model binary (12 MB — export via: python -c "from ultralytics import YOLO; YOLO('models/Reporthole-v1.pt').export(format='onnx', imgsz=640)")
-# ===========================
-src/main/resources/models/*.onnx
