@@ -1,19 +1,29 @@
 services:
 
   postgres:
-    image: postgis/postgis:16-3.4
+    build:
+      context: ./infra
+      dockerfile: Dockerfile.postgres
     container_name: reporthole-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: postgres
-#    env_file: todo need to check if when deploying this is needed or what
-#      - .env
+      POSTGRES_DB: reporthole
+    env_file:
+      - .env
+    command: >
+      postgres
+      -c shared_buffers=768MB
+      -c max_connections=50
+      -c effective_cache_size=2GB
+      -c work_mem=8MB
+    deploy:
+      resources:
+        limits:
+          memory: 3g
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR}:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    ports:
-      - "5432:5432"
     networks:
       - reporthole-net
     healthcheck:
@@ -21,21 +31,23 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
-  app:
+  reporthole-be:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: reporthole-app
-    ports:
-      - "8080:8080"
+    container_name: reporthole-be
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: prod
       JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD}
       SERVICES_WEB_BASE_URL: ${SERVICES_WEB_BASE_URL}
+      SERVICES_WEB_BASE_URL_FRONTEND: ${SERVICES_WEB_BASE_URL_FRONTEND}
       POSTGRES_USERNAME: ${POSTGRES_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_DATASOURCE_URL: jdbc:postgresql://reporthole-postgres:5432/reporthole
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_APP_PASSWORD: ${MAIL_APP_PASSWORD}
     volumes:
       - uploads-data:/app/uploads/incidents
     depends_on:
@@ -43,6 +55,7 @@ services:
         condition: service_healthy
     networks:
       - reporthole-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/api/actuator/health || exit 1"]
       interval: 30s
@@ -50,9 +63,57 @@ services:
       retries: 5
       start_period: 90s
 
+  reporthole-fe:
+    build:
+      context: ../reporthole-fe
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        INTERNAL_API_URL: http://reporthole-be:8080/api
+    container_name: reporthole-fe
+    environment:
+      APP_ENV: prod
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      INTERNAL_API_URL: http://reporthole-be:8080/api
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: reporthole-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      reporthole-be:
+        condition: service_healthy
+      reporthole-fe:
+        condition: service_healthy
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+
 volumes:
-  postgres-data:
   uploads-data:
+  caddy-data:
+  caddy-config:
+  postgres-data:
 
 networks:
   reporthole-net:

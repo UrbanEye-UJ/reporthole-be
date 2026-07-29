@@ -1,0 +1,28 @@
+{$CADDY_SITE_ADDRESS} {
+	tls {$CADDY_TLS_MODE}
+
+	handle /api/incidents/events {
+		reverse_proxy {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
+			lb_policy first
+			health_uri /api/actuator/health
+			health_interval 5s
+			flush_interval -1
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
+			lb_policy first
+			health_uri /api/actuator/health
+			health_interval 5s
+		}
+	}
+
+	handle {
+		reverse_proxy {$FRONTEND_HOST}:{$FRONTEND_PORT} host.docker.internal:{$FRONTEND_PORT} {
+			lb_policy first
+			health_uri /
+			health_interval 5s
+		}
+	}
+}

@@ -1,26 +1,43 @@
 spring:
   datasource:
-    url: ENC(your-encrypted-value-here)
+    url: ${SPRING_DATASOURCE_URL}
     username: ${POSTGRES_USERNAME}
     password: ${POSTGRES_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
   mail:
     host: smtp.gmail.com
     port: 587
-    username: reporthole.noreply@gmail.com
-    password: ENC(jasypt-encrypted-app-password)
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_APP_PASSWORD}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
-#
-#services:
-##  web:
-##    allowed: ${SERVICES_WEB_ALLOWED_ORIGINS}
+
+mail:
+  from: reporthole.team@gmail.com
+  verification-url: ${SERVICES_WEB_BASE_URL_FRONTEND}/verify?token=
+  verification-subject: "Verify your Reporthole account"
+  password-reset-url: ${SERVICES_WEB_BASE_URL_FRONTEND}/reset-password?token=
+  password-reset-subject: "Reset your Reporthole password"
+
+services:
+  web:
+    base-url: ${SERVICES_WEB_BASE_URL:}
+    allowed:
+      - ${SERVICES_WEB_BASE_URL_FRONTEND}
+      - http://localhost:3000
+      - https://localhost:3000
+      - http://192.168.*:3000
+      - https://192.168.*:3000
+      - http://10.*:3000
+      - https://10.*:3000
+      - http://172.*:3000
+      - https://172.*:3000
 
