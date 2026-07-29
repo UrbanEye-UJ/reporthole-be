@@ -35,6 +35,7 @@ services:
     allowed:
       - http://localhost:3000
       - https://localhost:3000
+      - https://localhost
       - http://192.168.*:3000
       - https://192.168.*:3000
       - http://10.*:3000

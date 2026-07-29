@@ -32,6 +32,7 @@ management:
 server:
   servlet:
     context-path: /api/
+  forward-headers-strategy: native
 
 web:
   aes:
@@ -43,7 +44,6 @@ web:
 app:
   upload:
     dir: uploads/incidents
-  base-url: http://localhost:8080/api
   features:
     email-verification-enabled: true
 
@@ -54,7 +54,7 @@ inference:
 
 mail:
   from: reporthole.noreply@gmail.com
-  verification-url: https://localhost:3000/verify?token=
+  verification-url: ${SERVICES_WEB_BASE_URL_FRONTEND:https://localhost:3000}/verify?token=
   verification-subject: "Verify your Reporthole account"
-  password-reset-url: https://localhost:3000/reset-password?token=
+  password-reset-url: ${SERVICES_WEB_BASE_URL_FRONTEND:https://localhost:3000}/reset-password?token=
   password-reset-subject: "Reset your Reporthole password"
