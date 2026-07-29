@@ -4,6 +4,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 
 /**
  * MapStruct mapper interface for converting user request DTOs
@@ -37,15 +38,27 @@ public interface IUserMapper {
      * <p>The following fields are ignored because they are system-managed:</p>
      * <ul>
      *     <li>userId</li>
+     *     <li>emailHash — computed server-side via {@code SecretUtil.hashEmail()}</li>
      *     <li>createdAt</li>
      * </ul>
      *
      * @param user registration request data
      * @return mapped user entity
      */
+    @Mapping(target = "authId", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "emailHash", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "retries", ignore = true)
+    @Mapping(target = "verificationToken", ignore = true)
+    @Mapping(target = "verificationTokenExpiresAt", ignore = true)
+    @Mapping(target = "passwordResetToken", ignore = true)
+    @Mapping(target = "passwordResetTokenExpiresAt", ignore = true)
+    UserAuth toAuthEntity(RegisterRequest user);
+
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
-    User toEntity(RegisterRequest user);
+    User toUserEntity(RegisterRequest user);
 
     /**
      * Converts a login request into a partial {@link User} entity.
@@ -59,9 +72,8 @@ public interface IUserMapper {
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "firstName", ignore = true)
     @Mapping(target = "lastName", ignore = true)
-    @Mapping(target = "emailHash", ignore = true)
     @Mapping(target = "phoneNumber", ignore = true)
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
-    User toEntity(LoginRequest user);
+    User toAuthEntity(LoginRequest user);
 }

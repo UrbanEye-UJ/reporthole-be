@@ -40,6 +40,7 @@ spring-shell.log
 # ===========================
 .env
 .env.*
+!.env.example
 application-secrets.yaml
 application-secrets.yml
 
@@ -104,3 +105,4 @@ log/
 *.db
 *.mv.db
 *.trace.db
+

@@ -4,10 +4,22 @@ jasypt:
     iv-generator-classname: org.jasypt.iv.RandomIvGenerator
     password: ${JASYPT_ENCRYPTOR_PASSWORD}
 
+spring:
+  config:
+    import: "optional:file:.env[.properties]"
+  application:
+    name: reporthole-be
+  profiles:
+    active: local
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 logging:
   level:
     org.springdoc: DEBUG
-#    org.springframework.security: DEBUG
+    org.springframework.security: DEBUG
 
 management:
   endpoints:
@@ -20,12 +32,7 @@ management:
 server:
   servlet:
     context-path: /api/
-
-spring:
-  application:
-    name: reporthole-be
-  profiles:
-    active: local  # default profile, override this in env
+  forward-headers-strategy: native
 
 web:
   aes:
@@ -33,3 +40,21 @@ web:
   jwt:
     key: ENC(nTVulF4SgS7kw3GMeke/fFPWEq0qOqSauLIvQTPBGMwj0avVTl28nIc+8djS7DqRTEwF3JfME2dG71OGqV0BQ4ZZXtBzFKHJEgNaVLUBjwHNgCegDz8ZXTK8RnfMoUPgPLIxmiCL8/DBm8J8q2wWL6LSJf7k4qBLwVqGH3bJu04=)
     expiration: 86400000
+
+app:
+  upload:
+    dir: uploads/incidents
+  features:
+    email-verification-enabled: true
+
+inference:
+  model-path: classpath:models/Reporthole-v1.onnx
+  discard-threshold: 0.65
+  auto-log-threshold: 0.80
+
+mail:
+  from: reporthole.noreply@gmail.com
+  verification-url: ${SERVICES_WEB_BASE_URL_FRONTEND:https://localhost:3000}/verify?token=
+  verification-subject: "Verify your Reporthole account"
+  password-reset-url: ${SERVICES_WEB_BASE_URL_FRONTEND:https://localhost:3000}/reset-password?token=
+  password-reset-subject: "Reset your Reporthole password"

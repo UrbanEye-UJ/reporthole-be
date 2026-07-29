@@ -1,0 +1,11 @@
+target/
+.git/
+.idea/
+.vscode/
+.env
+.env.*
+*.log
+logs/
+uploads/
+.DS_Store
+src/main/resources/models/*.onnx

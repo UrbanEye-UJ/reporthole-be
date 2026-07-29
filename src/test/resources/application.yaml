@@ -1,7 +1,3 @@
-logging:
-  level:
-    org.springdoc: DEBUG
-
 management:
   endpoints:
     health:
@@ -26,3 +22,17 @@ web:
   jwt:
     key: T4cHmU+aswwAk1pyDbubDRto5SRbNBH66iezpdgpICTuo062/T3A54dmz0lKQee9JI8ZBrrDDmQ3An/O521sVg==
     expiration: 86400000
+
+app:
+  upload:
+    dir: target/test-uploads
+  base-url: http://localhost:8080/api
+  features:
+    email-verification-enabled: false
+
+mail:
+  from: test@localhost
+  verification-url: http://localhost:3000/verify?token=
+  verification-subject: "Verify your Reporthole account"
+  password-reset-url: http://localhost:3000/reset-password?token=
+  password-reset-subject: "Reset your Reporthole password"

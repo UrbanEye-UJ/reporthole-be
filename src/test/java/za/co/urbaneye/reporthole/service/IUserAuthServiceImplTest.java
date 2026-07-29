@@ -8,14 +8,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import za.co.urbaneye.reporthole.security.Jwt;
+import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
+import za.co.urbaneye.reporthole.user.entity.UserStatus;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
-import za.co.urbaneye.reporthole.user.service.impl.IUserAuthServiceImpl;
+import za.co.urbaneye.reporthole.user.repository.IUserRepository;
+import za.co.urbaneye.reporthole.user.service.impl.LoginServiceImpl;
+import za.co.urbaneye.reporthole.user.service.impl.RegistrationServiceImpl;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +35,9 @@ class IUserAuthServiceImplTest {
     private IUserAuthRepository repository;
 
     @Mock
+    private IUserRepository userRepository;
+
+    @Mock
     private IUserMapper mapper;
 
     @Mock
@@ -39,79 +47,172 @@ class IUserAuthServiceImplTest {
     private Jwt jwt;
 
     @InjectMocks
-    private IUserAuthServiceImpl service;
+    RegistrationServiceImpl registrationService;
+
+    @InjectMocks
+    LoginServiceImpl loginService;
 
     private RegisterRequest registerRequest;
 
     @BeforeEach
     void setup() {
         registerRequest = new RegisterRequest(
-                "John","Doe","john@mail.com","","CIVILIAN","123","0711111111"
+                "John", "Doe", "john@mail.com", UserRole.CIVILIAN, "Test@Pass1", "0711111111"
         );
     }
 
     @Test
     void shouldRegisterUser() {
-
-        when(repository.existsDistinctByEmail(anyString())).thenReturn(false);
-        when(mapper.toEntity(registerRequest)).thenReturn(User.builder().build());
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.empty());
+        when(mapper.toAuthEntity(registerRequest)).thenReturn(UserAuth.builder()
+                .status(UserStatus.ACTIVE).retries(0).build());
+        when(mapper.toUserEntity(registerRequest)).thenReturn(new User());
+        when(repository.save(any(UserAuth.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(encoder.encode(anyString())).thenReturn("hashed");
 
-        service.registerUser(registerRequest);
+        registrationService.registerUser(registerRequest);
 
-        verify(repository).save(any(User.class));
+        verify(repository).save(any(UserAuth.class));
+        verify(userRepository).save(any(User.class));
     }
 
     @Test
     void shouldThrowWhenUserExists() {
-
-        when(repository.existsDistinctByEmail(anyString())).thenReturn(true);
+        UserAuth existing = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .status(UserStatus.ACTIVE)
+                .retries(0)
+                .build();
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(existing));
 
         assertThrows(UserServiceException.class,
-                () -> service.registerUser(registerRequest));
+                () -> registrationService.registerUser(registerRequest));
     }
 
     @Test
     void shouldLoginUser() {
+        UUID userId = UUID.randomUUID();
 
-        User user = User.builder()
-                .userId(UUID.randomUUID())
+        UserAuth userAuth = UserAuth.builder()
+                .authId(userId)
                 .password("hashed")
-                .role(UserRole.CIVILIAN)
+                .status(UserStatus.ACTIVE)
+                .retries(0)
                 .build();
 
-        when(repository.findByEmailHash(anyString()))
-                .thenReturn(Optional.of(user));
+        User user = new User();
+        user.setUserId(userId);
+        user.setRole(UserRole.CIVILIAN);
 
-        when(encoder.matches("123","hashed")).thenReturn(true);
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
+        when(encoder.matches("Test@Pass1", "hashed")).thenReturn(true);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(jwt.generateToken(any(), any())).thenReturn("token");
 
-        String token = service.loginUser(new LoginRequest("john@mail.com","123"));
+        AuthResponse result = loginService.loginUser(new LoginRequest("john@mail.com", "Test@Pass1"));
 
-        assertEquals("token", token);
+        assertEquals("token", result.token());
+        assertEquals(UserRole.CIVILIAN, result.role());
+        verify(repository).save(userAuth);
     }
 
     @Test
     void shouldThrowWhenUserNotFound() {
-
-        when(repository.findByEmailHash(anyString()))
-                .thenReturn(Optional.empty());
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.empty());
 
         assertThrows(UserServiceException.class,
-                () -> service.loginUser(new LoginRequest("a","b")));
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "pass")));
     }
 
     @Test
     void shouldThrowWhenPasswordWrong() {
+        UserAuth userAuth = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .password("hashed")
+                .status(UserStatus.ACTIVE)
+                .retries(0)
+                .build();
 
-        User user = User.builder().password("hashed").build();
-
-        when(repository.findByEmailHash(anyString()))
-                .thenReturn(Optional.of(user));
-
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
         when(encoder.matches(anyString(), anyString())).thenReturn(false);
 
         assertThrows(UserServiceException.class,
-                () -> service.loginUser(new LoginRequest("a","b")));
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "wrong")));
+    }
+
+    @Test
+    void shouldIncrementRetriesOnWrongPassword() {
+        UserAuth userAuth = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .password("hashed")
+                .status(UserStatus.ACTIVE)
+                .retries(0)
+                .build();
+
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
+        when(encoder.matches(anyString(), anyString())).thenReturn(false);
+
+        assertThrows(UserServiceException.class,
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "wrong")));
+
+        assertEquals(1, userAuth.getRetries());
+        verify(repository).save(userAuth);
+    }
+
+    @Test
+    void shouldLockAccountAfterThreeFailedAttempts() {
+        UserAuth userAuth = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .password("hashed")
+                .status(UserStatus.ACTIVE)
+                .retries(2)
+                .build();
+
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
+        when(encoder.matches(anyString(), anyString())).thenReturn(false);
+
+        UserServiceException ex = assertThrows(UserServiceException.class,
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "wrong")));
+
+        assertEquals(UserStatus.LOCKED, userAuth.getStatus());
+        assertTrue(ex.getMessage().contains("locked"));
+        verify(repository).save(userAuth);
+    }
+
+    @Test
+    void shouldThrowWhenAccountLocked() {
+        UserAuth userAuth = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .password("hashed")
+                .status(UserStatus.LOCKED)
+                .retries(3)
+                .build();
+
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
+
+        UserServiceException ex = assertThrows(UserServiceException.class,
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "pass")));
+
+        assertTrue(ex.getMessage().contains("locked"));
+        verify(encoder, never()).matches(anyString(), anyString());
+    }
+
+    @Test
+    void shouldThrowWhenAccountPendingVerification() {
+        UserAuth userAuth = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .password("hashed")
+                .status(UserStatus.PENDING_VERIFICATION)
+                .retries(0)
+                .build();
+
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
+
+        UserServiceException ex = assertThrows(UserServiceException.class,
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "pass")));
+
+        assertTrue(ex.getMessage().contains("not verified") || ex.getMessage().contains("verif"));
+        verify(encoder, never()).matches(anyString(), anyString());
     }
 }
