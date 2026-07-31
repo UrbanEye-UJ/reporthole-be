@@ -1,7 +1,6 @@
 name: PR Auto-Review
 
-# Runs on every PR to develop. Posts an opening checklist, runs CI checks,
-# then posts a review summary comment with pass/fail per check.
+# Posts an opening checklist on new PRs, runs backend CI, then posts a result summary.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -13,7 +12,6 @@ permissions:
 
 jobs:
 
-  # Posts a one-time review checklist the first time a PR is opened.
   opening-checklist:
     name: Post Checklist
     runs-on: ubuntu-latest
@@ -29,42 +27,38 @@ jobs:
               body: [
                 '## PR Review Checklist',
                 '',
-                'Automated CI will run lint, tests, and a build. Human reviewer — please also check:',
+                'Automated CI will run the test suite. Human reviewer — please also check:',
                 '',
                 '### Code quality',
-                '- [ ] No `console.log` / debug statements left in',
+                '- [ ] No debug logging or `System.out.println` left in',
                 '- [ ] No hardcoded secrets, credentials, or environment-specific URLs',
-                '- [ ] New code has doc comments (per CLAUDE.md)',
+                '- [ ] New methods and classes have doc comments (project rule)',
                 '',
                 '### Security',
-                '- [ ] Reporter PII fields are AES-256 encrypted — GPS coordinates must **not** be encrypted',
-                '- [ ] JWT validation is not bypassed on new endpoints',
-                '- [ ] No `any` / `Function` types introduced in TypeScript',
+                '- [ ] Reporter PII fields (names, emails) are AES-256 encrypted via `@Convert`',
+                '- [ ] GPS coordinates are stored **unencrypted** — they are public road locations',
+                '- [ ] New endpoints are protected by `@SecurityRequirement` / JWT filter — no accidental open routes',
+                '- [ ] No raw SQL with string concatenation (use JPQL parameters or `@Query` bind vars)',
                 '',
                 '### API & data layer',
-                '- [ ] New BE endpoints have Swagger `@Operation` / `@ApiResponse` annotations',
-                '- [ ] `orval` was re-run if the OpenAPI spec changed — generated files are committed',
-                '- [ ] New FE API calls use orval-generated hooks, not manual `fetch`/`axios`',
+                '- [ ] New endpoints have `@Operation` and `@ApiResponse` Swagger annotations',
+                '- [ ] Any OpenAPI spec change is accompanied by a note for the FE team to re-run `npx orval`',
+                '- [ ] New `@Entity` fields that are PII use `@Convert(converter = AesEncryptor.class)`',
                 '',
                 '### Tests',
-                '- [ ] New features include BE unit tests (Mockito) and integration tests (H2)',
-                '- [ ] New FE components include Jest + RTL unit tests',
-                '- [ ] Integration tests use `forceCreate: true` to bypass PostGIS duplicate check in H2',
+                '- [ ] New service logic has Mockito unit tests',
+                '- [ ] New endpoints have `@SpringBootTest` integration tests',
+                '- [ ] Integration tests that touch incident creation use `forceCreate: true` (H2 lacks PostGIS)',
                 '',
                 '### Scope',
                 '- [ ] Branch targets `develop`, not `main`',
-                '- [ ] PR does not include unrelated changes',
+                '- [ ] PR does not bundle unrelated changes',
               ].join('\n')
             });
 
-  # ── Backend ──────────────────────────────────────────────────────────────────
-
-  backend:
+  backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: reporthole-be
     outputs:
       result: ${{ job.status }}
     steps:
@@ -85,100 +79,28 @@ jobs:
       - name: Run tests
         run: ./mvnw test --no-transfer-progress
 
-  # ── Frontend ─────────────────────────────────────────────────────────────────
-
-  frontend-lint:
-    name: FE Lint
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: reporthole-fe
-    outputs:
-      result: ${{ job.status }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: reporthole-fe/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-
-  frontend-test:
-    name: FE Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: reporthole-fe
-    outputs:
-      result: ${{ job.status }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: reporthole-fe/package-lock.json
-      - run: npm ci
-      - run: npm test -- --ci --passWithNoTests
-
-  frontend-build:
-    name: FE Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: reporthole-fe
-    outputs:
-      result: ${{ job.status }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: reporthole-fe/package-lock.json
-      - run: npm ci
-      - run: npm run build
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8080/api
-
-  # ── Summary review comment ───────────────────────────────────────────────────
-
   post-review:
     name: Post Review Summary
     runs-on: ubuntu-latest
-    needs: [backend, frontend-lint, frontend-test, frontend-build]
+    needs: [backend-tests]
     if: always()
     steps:
       - uses: actions/github-script@v7
         with:
           script: |
-            const results = {
-              'Backend Tests':  '${{ needs.backend.result }}',
-              'FE Lint':        '${{ needs.frontend-lint.result }}',
-              'FE Tests':       '${{ needs.frontend-test.result }}',
-              'FE Build':       '${{ needs.frontend-build.result }}',
-            };
-
-            const icon = (r) => r === 'success' ? '✅' : r === 'skipped' ? '⏭️' : '❌';
-
-            const rows = Object.entries(results)
-              .map(([name, r]) => `| ${name} | ${icon(r)} ${r} |`)
-              .join('\n');
-
-            const allPassed = Object.values(results).every(r => r === 'success' || r === 'skipped');
+            const result = '${{ needs.backend-tests.result }}';
+            const icon = result === 'success' ? '✅' : '❌';
 
             const body = [
               '## Automated CI Summary',
               '',
               '| Check | Result |',
               '|-------|--------|',
-              rows,
+              `| Backend Tests | ${icon} ${result} |`,
               '',
-              allPassed
+              result === 'success'
                 ? '**All checks passed.** This PR is ready for human review.'
-                : '**One or more checks failed.** Please fix the issues above before this PR can be merged.',
+                : '**Tests failed.** Fix the issues above before this PR can be merged.',
             ].join('\n');
 
             await github.rest.issues.createComment({
