@@ -1,21 +1,19 @@
-# Reporthole Backend — Docker Guide
+# Reporthole — Docker Setup Guide
 
-This guide is for team members who want to **run the backend to test it** without setting up a full development environment. You do not need Java or Maven installed.
+This guide starts the **full local stack** (PostgreSQL, MailHog, backend, frontend) using Docker Compose. It is intended for people who want to run the whole system without setting up a Java or Node development environment.
 
-If you want to write code and make changes, see [DEV_SETUP.md](DEV_SETUP.md) instead.
+If you want to write backend code and run the BE from IntelliJ, see [DEV_SETUP.md](DEV_SETUP.md) instead.
 
 ---
 
-## What you need to install
+## What you need
 
-| Tool | Version | Download |
-|------|---------|----------|
-| Docker Desktop | Latest | https://www.docker.com/products/docker-desktop |
-| Git | Any | https://git-scm.com |
+| Tool | Download |
+|------|---------|
+| Docker Desktop (latest) | https://www.docker.com/products/docker-desktop |
+| Git | https://git-scm.com |
 
-That's it.
-
-> Make sure Docker Desktop is **open and running** before you follow any steps below.
+Make sure Docker Desktop is open and running before continuing.
 
 ---
 
@@ -30,76 +28,100 @@ cd reporthole/reporthole-be
 
 ## 2. Create your `.env` file
 
-In the `reporthole-be` folder, create a file called `.env`:
+Copy the example file:
 
 ```bash
-# Mac/Linux
-touch .env
-
-# Windows (PowerShell)
-New-Item .env
+cp .env.example .env
 ```
 
-Open it and add the following — **ask a teammate for the actual password value**:
+Open `.env` and fill in the values — **ask a teammate for the secret values**. The variables the stack needs are:
 
 ```env
-JASYPT_ENCRYPTOR_PASSWORD=ask_a_teammate_for_this
+# Required — ask a teammate
+JASYPT_ENCRYPTOR_PASSWORD=
+POSTGRES_USERNAME=
+POSTGRES_PASSWORD=
+REPORTHOLE_AES_KEY=
+REPORTHOLE_JWT_KEY=
+MAIL_USERNAME=
+MAIL_APP_PASSWORD=
+
+# Defaults that work for local Docker
+POSTGRES_DATA_DIR=postgres-data
+SPRING_PROFILES_ACTIVE=local
+SERVICES_WEB_BASE_URL=http://localhost:8080/api
+SERVICES_WEB_BASE_URL_FRONTEND=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
+CADDY_SITE_ADDRESS=localhost
+CADDY_TLS_MODE=internal
+BACKEND_HOST=reporthole-be
+BACKEND_PORT=8080
+FRONTEND_HOST=reporthole-fe
+FRONTEND_PORT=3000
 ```
 
-> ⚠️ Never commit this file to Git. It is already listed in `.gitignore`.
+> Never commit `.env`. It is listed in `.gitignore`.
 
 ---
 
-## 3. Start the backend
+## 3. Start infrastructure only (recommended for BE development)
+
+If you are running the backend from IntelliJ and only need the database and mail server:
 
 ```bash
-docker compose -f docker-compose-local.yml up --build
+docker compose -f docker-compose.local.yml up postgres mailhog -d
 ```
 
-The first run takes a few minutes while Docker downloads the base images and Maven downloads dependencies. Subsequent starts are much faster.
+| Container | Purpose | Port |
+|-----------|---------|------|
+| `reporthole-postgres` | PostgreSQL 16 + PostGIS | 5432 |
+| `reporthole-mailhog` | Fake SMTP (view emails in browser) | SMTP: 1025, Web: 8025 |
 
-You'll know it's ready when you see something like:
-
-```
-reporthole-be  | Started ReportHoleApplication in 4.3 seconds
-```
+MailHog web UI (view outgoing emails): `http://localhost:8025`
 
 ---
 
-## 4. Verify it's running
+## 4. Start the full stack (BE + FE containerised)
 
-Open your browser and check the following:
-
-| URL | What you should see |
-|-----|---------------------|
-| http://localhost:8080/api/actuator/health | `{"status":"UP"}` |
-| http://localhost:8080/api/swagger-ui/index.html | Swagger API documentation UI |
-| http://localhost:8080/api/h2-console | H2 database browser |
-
----
-
-## 5. Testing the API with Swagger
-
-Swagger UI gives you a visual interface to test all API endpoints without needing Postman.
-
-1. Go to http://localhost:8080/api/swagger-ui/index.html
-2. Find the endpoint you want to test
-3. Click **Try it out**
-4. Fill in any required fields and click **Execute**
-5. The response appears below
-
-For endpoints that require authentication, you'll need to log in first and paste the JWT token into the **Authorize** button at the top of the page.
-
----
-
-## 6. Stopping the backend
+The `reporthole-be` and `reporthole-fe` services are in the `full` profile. Use `--profile full` to include them:
 
 ```bash
-# Stop containers but keep data
-docker compose -f docker-compose-local.yml down
+docker compose -f docker-compose.local.yml --profile full up --build -d
+```
 
-# Stop and reset everything (fresh database on next start)
-docker compose -f docker-compose-local.yml down -v
+The first build downloads base images and Maven/npm dependencies — this takes a few minutes. Subsequent starts are much faster.
+
+You'll know it's ready when:
+
+```bash
+docker compose -f docker-compose.local.yml ps
+```
+
+…shows all containers as `healthy` or `running`.
+
+---
+
+## 5. Verify it's working
+
+| URL | Expected result |
+|-----|----------------|
+| `http://localhost:8080/api/actuator/health` | `{"status":"UP"}` |
+| `http://localhost:8080/api/swagger-ui/index.html` | Swagger API docs |
+| `http://localhost:3000` | Reporthole frontend |
+| `http://localhost:8025` | MailHog email viewer |
+
+For endpoints that require authentication: log in via Swagger (`POST /auth/login`), copy the JWT, then click **Authorize** at the top of the Swagger page and paste it.
+
+---
+
+## 6. Stop the stack
+
+```bash
+# Stop containers but keep database data
+docker compose -f docker-compose.local.yml --profile full down
+
+# Stop and wipe database (fresh DB on next start)
+docker compose -f docker-compose.local.yml --profile full down -v
 ```
 
 ---
@@ -108,44 +130,31 @@ docker compose -f docker-compose-local.yml down -v
 
 **App crashes immediately on startup**
 
-Your `JASYPT_ENCRYPTOR_PASSWORD` in `.env` is likely wrong. The app cannot decrypt its config values without the correct password. Double-check it with a teammate.
+`JASYPT_ENCRYPTOR_PASSWORD` in `.env` is wrong. The app cannot decrypt the `ENC(...)` values in `application-local.yml` without the correct password. Double-check with a teammate.
 
-**Port 8080 is already in use**
+**Port 5432 or 8080 already in use**
 
-Something else on your machine is using port 8080. Either stop that process, or change the port in `docker-compose-local.yml`:
+Another process is using that port. Stop it, or temporarily change the left-hand port number in `docker-compose.local.yml`:
 
 ```yaml
 ports:
-  - "9090:8080"   # change the left number only, then access via :9090
+  - "9090:8080"   # left side = host port; right side = container port — only change the left
 ```
 
-**Docker build fails**
+**Images uploaded locally are not showing in the FE**
 
-Try clearing the cache and rebuilding from scratch:
+The backend stores image URLs using `SERVICES_WEB_BASE_URL`. When running fully containerised, this must point to the externally reachable BE address (default `http://localhost:8080/api`). The FE image proxy (`/api/image-proxy`) rewrites the URL to use the internal Docker hostname (`reporthole-be`) when fetching — so the FE container can always reach stored images.
 
-```bash
-docker compose -f docker-compose-local.yml build --no-cache
-docker compose -f docker-compose-local.yml up
-```
+**Database is empty after a fresh start**
 
-**H2 console shows a blank page or connection error**
+Expected for a first start — there is no seed data. Register a user via the FE or Swagger and submit your first incident.
 
-- Make sure you're using `http://` not `https://`
-- Make sure the full path includes `/api/` — the context path is required
-- Ask a teammate for the correct JDBC URL and credentials from `application-local.yml`
+**Build fails for the FE container**
 
-**Database is empty after restart**
-
-This is expected. The local profile uses `ddl-auto: create-drop`, which means the H2 database is wiped and recreated every time the app restarts. This keeps the local environment clean.
+The FE Dockerfile receives `NEXT_PUBLIC_API_URL` as a build arg. Make sure it is set in `.env`. The default is `http://localhost:8080/api`.
 
 ---
 
-## What is H2?
+## What database does this stack use?
 
-H2 is a lightweight in-memory database used for local development and testing. It means:
-
-- No PostgreSQL installation needed on your machine
-- The database is created fresh every time the app starts
-- All data is lost when the app stops — this is intentional for local testing
-
-The production environment uses PostgreSQL + PostGIS, but you don't need to worry about that for local testing.
+PostgreSQL 16 with the PostGIS extension. The `local` Spring profile connects to `reporthole-postgres` inside the Docker network. **H2 is only used for automated tests** (`./mvnw test`) — it is never used in Docker.
