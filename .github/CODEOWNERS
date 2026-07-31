@@ -1,0 +1,4 @@
+# Every PR automatically requests review from these members.
+# To enforce that approval is required before merging, upgrade to GitHub Pro
+# and enable branch protection on the develop branch.
+* @pule-prince @refentse1

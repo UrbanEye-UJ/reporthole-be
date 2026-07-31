@@ -8,4 +8,3 @@ target/
 logs/
 uploads/
 .DS_Store
-src/main/resources/models/*.onnx

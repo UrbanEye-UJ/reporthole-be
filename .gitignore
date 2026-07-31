@@ -13,7 +13,7 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
-.mvn/wrapper/maven-wrapper.properties
+# maven-wrapper.properties must be committed — CI needs it to download Maven
 
 # ===========================
 # Gradle (if you ever switch)
