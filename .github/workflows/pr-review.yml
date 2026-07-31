@@ -1,0 +1,189 @@
+name: PR Auto-Review
+
+# Runs on every PR to develop. Posts an opening checklist, runs CI checks,
+# then posts a review summary comment with pass/fail per check.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+
+  # Posts a one-time review checklist the first time a PR is opened.
+  opening-checklist:
+    name: Post Checklist
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## PR Review Checklist',
+                '',
+                'Automated CI will run lint, tests, and a build. Human reviewer — please also check:',
+                '',
+                '### Code quality',
+                '- [ ] No `console.log` / debug statements left in',
+                '- [ ] No hardcoded secrets, credentials, or environment-specific URLs',
+                '- [ ] New code has doc comments (per CLAUDE.md)',
+                '',
+                '### Security',
+                '- [ ] Reporter PII fields are AES-256 encrypted — GPS coordinates must **not** be encrypted',
+                '- [ ] JWT validation is not bypassed on new endpoints',
+                '- [ ] No `any` / `Function` types introduced in TypeScript',
+                '',
+                '### API & data layer',
+                '- [ ] New BE endpoints have Swagger `@Operation` / `@ApiResponse` annotations',
+                '- [ ] `orval` was re-run if the OpenAPI spec changed — generated files are committed',
+                '- [ ] New FE API calls use orval-generated hooks, not manual `fetch`/`axios`',
+                '',
+                '### Tests',
+                '- [ ] New features include BE unit tests (Mockito) and integration tests (H2)',
+                '- [ ] New FE components include Jest + RTL unit tests',
+                '- [ ] Integration tests use `forceCreate: true` to bypass PostGIS duplicate check in H2',
+                '',
+                '### Scope',
+                '- [ ] Branch targets `develop`, not `main`',
+                '- [ ] PR does not include unrelated changes',
+              ].join('\n')
+            });
+
+  # ── Backend ──────────────────────────────────────────────────────────────────
+
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reporthole-be
+    outputs:
+      result: ${{ job.status }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Run tests
+        run: ./mvnw test --no-transfer-progress
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+
+  frontend-lint:
+    name: FE Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reporthole-fe
+    outputs:
+      result: ${{ job.status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: reporthole-fe/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  frontend-test:
+    name: FE Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reporthole-fe
+    outputs:
+      result: ${{ job.status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: reporthole-fe/package-lock.json
+      - run: npm ci
+      - run: npm test -- --ci --passWithNoTests
+
+  frontend-build:
+    name: FE Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reporthole-fe
+    outputs:
+      result: ${{ job.status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: reporthole-fe/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8080/api
+
+  # ── Summary review comment ───────────────────────────────────────────────────
+
+  post-review:
+    name: Post Review Summary
+    runs-on: ubuntu-latest
+    needs: [backend, frontend-lint, frontend-test, frontend-build]
+    if: always()
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const results = {
+              'Backend Tests':  '${{ needs.backend.result }}',
+              'FE Lint':        '${{ needs.frontend-lint.result }}',
+              'FE Tests':       '${{ needs.frontend-test.result }}',
+              'FE Build':       '${{ needs.frontend-build.result }}',
+            };
+
+            const icon = (r) => r === 'success' ? '✅' : r === 'skipped' ? '⏭️' : '❌';
+
+            const rows = Object.entries(results)
+              .map(([name, r]) => `| ${name} | ${icon(r)} ${r} |`)
+              .join('\n');
+
+            const allPassed = Object.values(results).every(r => r === 'success' || r === 'skipped');
+
+            const body = [
+              '## Automated CI Summary',
+              '',
+              '| Check | Result |',
+              '|-------|--------|',
+              rows,
+              '',
+              allPassed
+                ? '**All checks passed.** This PR is ready for human review.'
+                : '**One or more checks failed.** Please fix the issues above before this PR can be merged.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
