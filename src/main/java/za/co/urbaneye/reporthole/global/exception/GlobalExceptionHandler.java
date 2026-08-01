@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException;
 import za.co.urbaneye.reporthole.global.entity.ErrorObject;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 
@@ -83,6 +84,36 @@ public class GlobalExceptionHandler {
             status = HttpStatus.GONE;                         // 410
         } else {
             status = HttpStatus.BAD_REQUEST;                  // 400
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles admin application business rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — user record missing</li>
+     *     <li>409 Conflict — application already submitted</li>
+     *     <li>400 Bad Request — role guard (already ADMIN or CONTRACTOR)</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link AdminApplicationException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(AdminApplicationException.class)
+    public ResponseEntity<ErrorObject> handleAdminApplicationException(AdminApplicationException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("already submitted")) {
+            status = HttpStatus.CONFLICT;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
         }
 
         ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
