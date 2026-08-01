@@ -1,131 +1,143 @@
 # Reporthole Backend — Developer Setup Guide
 
-This guide is for team members who want to run the backend **locally for development** (coding, debugging, making changes). If you just want to test the app without coding, see [DOCKER.md](DOCKER.md) instead.
+This guide is for team members who want to run the backend locally for development (writing code, debugging, making changes).
 
 ---
 
-## What you need to install
+## What you need
 
 | Tool | Version | Download |
 |------|---------|----------|
-| IntelliJ IDEA | Latest (Community or Ultimate) | https://www.jetbrains.com/idea/download |
 | Java JDK | 21 | https://adoptium.net/temurin/releases/?version=21 |
-| Maven | 3.9+ | https://maven.apache.org/download.cgi — or use the IntelliJ bundled version |
-| Git | Any | https://git-scm.com |
-| Postman *(optional)* | Latest | https://www.postman.com/downloads |
+| Docker Desktop | Latest | https://www.docker.com/products/docker-desktop |
+| IntelliJ IDEA | Latest (Community is free) | https://www.jetbrains.com/idea/download |
+| Maven | 3.9+ (or use `./mvnw`) | Bundled with the project |
 
-> **Note:** You do not need PostgreSQL installed locally. The project uses H2 (an in-memory database) for local development. PostgreSQL is only used in production.
+Make sure Docker Desktop is running before you start.
 
 ---
 
-## 1. Clone the repo
+## 1. Get the `.env` file
 
-Create a folder called `reporthole` and navigate into it:
+The project uses a `.env` file for secrets. **Ask a teammate for this file** — never create it from scratch yourself. Place it in the `reporthole-be/` directory (same folder as this guide).
+
+The file must be named exactly `.env`. Your `reporthole-be/` folder should contain:
+
+```
+reporthole-be/
+  .env              ← paste here
+  pom.xml
+  docker-compose.local.yml
+  src/
+  ...
+```
+
+Key variables the file must contain (values from a teammate):
+```env
+JASYPT_ENCRYPTOR_PASSWORD=
+POSTGRES_USERNAME=
+POSTGRES_PASSWORD=
+POSTGRES_DATA_DIR=postgres-data
+REPORTHOLE_AES_KEY=
+REPORTHOLE_JWT_KEY=
+```
+
+---
+
+## 2. Start the database and mail server
+
+The `local` profile connects to a PostgreSQL + PostGIS database. Start it with Docker:
 
 ```bash
-git clone https://github.com/UrbanEye-UJ/reporthole-be.git
-cd reporthole/reporthole-be
+docker compose -f docker-compose.local.yml up postgres mailhog -d
+```
+
+Verify both containers are running:
+
+```bash
+docker ps
+```
+
+| Container | Purpose | Port |
+|-----------|---------|------|
+| `reporthole-postgres` | PostgreSQL 16 + PostGIS | 5432 |
+| `reporthole-mailhog` | Fake SMTP for local email testing | SMTP: 1025, Web: 8025 |
+
+MailHog web UI (view sent emails): `http://localhost:8025`
+
+To stop:
+```bash
+docker compose -f docker-compose.local.yml down
 ```
 
 ---
 
-## 2. Open the project in IntelliJ
+## 3. Open the project in IntelliJ
 
-1. Open IntelliJ IDEA
-2. Click **File → Open** and select the `reporthole-be` folder
-3. IntelliJ will detect the `pom.xml` and import it as a Maven project automatically
-4. Wait for Maven to finish downloading dependencies (bottom progress bar)
+1. **File → Open** → select the `reporthole-be` folder
+2. IntelliJ detects `pom.xml` and imports it as a Maven project
+3. Wait for Maven to finish downloading dependencies
+
+**Enable annotation processing for Lombok:**
+`Settings → Build, Execution, Deployment → Compiler → Annotation Processors → Enable annotation processing`
+
+**Reload Maven** if needed: right-click `pom.xml` → **Maven → Reload Project**
 
 ---
 
-## 3. Set up the Jasypt password
+## 4. Configure the run configuration
 
-All sensitive config values (database credentials, JWT key, AES key) are encrypted using Jasypt. You need a password to decrypt them at runtime.
+Click **Edit Configurations** (top-right dropdown) → select or create a Spring Boot configuration for `ReportholeBeApplication`.
 
-**Ask a teammate for the `JASYPT_ENCRYPTOR_PASSWORD` value.**
-
-Once you have it, add it as an environment variable in IntelliJ:
-
-1. Open the **Run/Debug Configurations** (top right dropdown → **Edit Configurations**)
-2. Select your Spring Boot run configuration (or create one if it doesn't exist: **+ → Spring Boot → select main class**)
-3. Click **Modify options → Environment variables**
-4. Add the following:
+Under **Environment variables**, add:
 
 ```
-JASYPT_ENCRYPTOR_PASSWORD=<password_from_teammate>
+SPRING_PROFILES_ACTIVE=local
+JASYPT_ENCRYPTOR_PASSWORD=<value from your .env file>
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/reporthole
 ```
 
-5. Click **Apply → OK**
-
-> ⚠️ Never hardcode this password in any file. Never commit it to Git.
-
----
-
-## 4. Set the active profile
-
-The project uses Spring profiles. For local development, the `local` profile is already set as default in `application.yml`:
-
-```yaml
-spring:
-  profiles:
-    active: local
-```
-
-This means it will use H2 (in-memory database) and `application-local.yml` config automatically. You don't need to change anything.
+> `application-local.yml` uses `reporthole-postgres` as the DB hostname (only resolvable inside Docker).
+> The `SPRING_DATASOURCE_URL` override redirects IntelliJ to the container's exposed port on your local machine.
 
 ---
 
-## 5. Run the application
+## 5. Run the backend
 
-In IntelliJ, click the **green Run button** or press `Shift + F10`.
-
-The app starts on port `8080` with context path `/api/`.
-
----
-
-## 6. Verify it's running
-
-Open your browser and check:
+Click the green **Run** button. The app starts at `http://localhost:8080/api`.
 
 | URL | What it shows |
 |-----|--------------|
-| http://localhost:8080/api/actuator/health | Should return `{"status":"UP"}` |
-| http://localhost:8080/api/swagger-ui/index.html | Interactive API documentation |
-| http://localhost:8080/api/h2-console | H2 database browser (local only) |
+| `http://localhost:8080/api/actuator/health` | `{"status":"UP"}` when healthy |
+| `http://localhost:8080/api/swagger-ui/index.html` | Interactive API documentation |
 
 ---
 
-## 7. H2 Console access
+## 6. Run tests
 
-The H2 console lets you browse the in-memory database directly.
+Tests use **H2 in-memory database** (the default profile — no Docker needed):
 
-1. Go to http://localhost:8080/api/h2-console
-2. Use the JDBC URL, username, and password from `application-local.yml`
-3. Ask a teammate if you're unsure what these are (they are Jasypt-encrypted in the config)
+```bash
+./mvnw test --no-transfer-progress
+```
 
-> The H2 database resets every time you restart the app because `ddl-auto` is set to `create-drop` in the local profile. This is intentional.
+This is the same command the GitHub Actions workflow runs.
+
+> **Note:** H2 does not support PostGIS. Integration tests use `forceCreate: true` on `IncidentRequestDTO` to bypass the `ST_DWithin` duplicate-check query.
 
 ---
 
-## 8. Useful IntelliJ plugins to install
+## Spring profiles
 
-Go to **File → Settings → Plugins** and search for:
+| Profile | Database | When to use |
+|---------|----------|-------------|
+| *(none / default)* | H2 in-memory | Running tests |
+| `local` | PostgreSQL 16 + PostGIS via Docker | IntelliJ dev against the Dockerised DB |
+| `prod` | PostgreSQL (encrypted credentials) | Production Docker deployment |
 
-| Plugin                | Why |
-|-----------------------|-----|
-| **Lombok**            | Required — the project uses Lombok annotations. Without this, you'll see red errors everywhere |
-| **MapStruct Support** | Helps with mapper code generation |
-| **EnvFile**           | Lets you load `.env` files into run configurations |
-| **EnvFile**           | Lets you load `.env` files into run configurations |
-| **Maven**             | The build tool is Maven, so this helps with managing dependencies and running goals |
+The default profile is set to `local` in `application.yaml`. Tests run without a profile set (the H2 auto-configuration kicks in automatically).
 
-> After installing Lombok, go to **File → Settings → Build, Execution, Deployment → Compiler → Annotation Processors** and tick **Enable annotation processing**.
-> Then restart IntelliJ to make sure Lombok is working correctly.
-> Then on the folder directory do rigt click the pom file and click **Maven → Reload project** to make sure all dependencies are correctly imported.
-> Then right click the pom file again and click **Maven → Generate Sources and Update Folders** to make sure all generated sources (like MapStruct mappers) are created.
-> On the right side there is a maven tab (m logo) click on it there is a lifecycle option expand it and select clean install then the play button to build an artifact.
-> Then you can run the application by right clicking the main class and click **Run 'ReportholeApplication'**.
-
+---
 
 ## Tech stack reference
 
@@ -134,8 +146,8 @@ Go to **File → Settings → Plugins** and search for:
 | Framework | Spring Boot 3.5.9 |
 | Language | Java 21 |
 | ORM | Spring Data JPA + Hibernate Spatial |
-| Database (local) | H2 in-memory |
-| Database (prod) | PostgreSQL + PostGIS |
+| Database (tests) | H2 in-memory |
+| Database (local/prod) | PostgreSQL 16 + PostGIS |
 | Security | Spring Security + JWT (jjwt 0.12.6) |
 | Secrets | Jasypt (PBEWITHHMACSHA512ANDAES_256) |
 | Mapping | MapStruct 1.5.5 |

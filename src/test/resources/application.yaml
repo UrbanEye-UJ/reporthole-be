@@ -36,3 +36,4 @@ mail:
   verification-subject: "Verify your Reporthole account"
   password-reset-url: http://localhost:3000/reset-password?token=
   password-reset-subject: "Reset your Reporthole password"
+  admin-application-subject: "Admin Access Request — Reporthole"

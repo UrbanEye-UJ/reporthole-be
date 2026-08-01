@@ -1,0 +1,111 @@
+name: PR Auto-Review
+
+# Posts an opening checklist on new PRs, runs backend CI, then posts a result summary.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+
+  opening-checklist:
+    name: Post Checklist
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## PR Review Checklist',
+                '',
+                'Automated CI will run the test suite. Human reviewer — please also check:',
+                '',
+                '### Code quality',
+                '- [ ] No debug logging or `System.out.println` left in',
+                '- [ ] No hardcoded secrets, credentials, or environment-specific URLs',
+                '- [ ] New methods and classes have doc comments (project rule)',
+                '',
+                '### Security',
+                '- [ ] Reporter PII fields (names, emails) are AES-256 encrypted via `@Convert`',
+                '- [ ] GPS coordinates are stored **unencrypted** — they are public road locations',
+                '- [ ] New endpoints are protected by `@SecurityRequirement` / JWT filter — no accidental open routes',
+                '- [ ] No raw SQL with string concatenation (use JPQL parameters or `@Query` bind vars)',
+                '',
+                '### API & data layer',
+                '- [ ] New endpoints have `@Operation` and `@ApiResponse` Swagger annotations',
+                '- [ ] Any OpenAPI spec change is accompanied by a note for the FE team to re-run `npx orval`',
+                '- [ ] New `@Entity` fields that are PII use `@Convert(converter = AesEncryptor.class)`',
+                '',
+                '### Tests',
+                '- [ ] New service logic has Mockito unit tests',
+                '- [ ] New endpoints have `@SpringBootTest` integration tests',
+                '- [ ] Integration tests that touch incident creation use `forceCreate: true` (H2 lacks PostGIS)',
+                '',
+                '### Scope',
+                '- [ ] Branch targets `develop`, not `main`',
+                '- [ ] PR does not bundle unrelated changes',
+              ].join('\n')
+            });
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ job.status }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Run tests
+        run: ./mvnw test --no-transfer-progress
+
+  post-review:
+    name: Post Review Summary
+    runs-on: ubuntu-latest
+    needs: [backend-tests]
+    if: always()
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const result = '${{ needs.backend-tests.result }}';
+            const icon = result === 'success' ? '✅' : '❌';
+
+            const body = [
+              '## Automated CI Summary',
+              '',
+              '| Check | Result |',
+              '|-------|--------|',
+              `| Backend Tests | ${icon} ${result} |`,
+              '',
+              result === 'success'
+                ? '**All checks passed.** This PR is ready for human review.'
+                : '**Tests failed.** Fix the issues above before this PR can be merged.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

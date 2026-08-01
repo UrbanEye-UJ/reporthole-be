@@ -24,6 +24,8 @@ services:
     volumes:
       - ${POSTGRES_DATA_DIR}:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
     networks:
       - reporthole-net
     healthcheck:
@@ -46,8 +48,11 @@ services:
       POSTGRES_USERNAME: ${POSTGRES_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_DATASOURCE_URL: jdbc:postgresql://reporthole-postgres:5432/reporthole
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_APP_PASSWORD: ${MAIL_APP_PASSWORD}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
     volumes:
       - uploads-data:/app/uploads/incidents
     depends_on:
@@ -65,7 +70,7 @@ services:
 
   reporthole-fe:
     build:
-      context: ../reporthole-fe
+      context: ../reporthole-ui
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
