@@ -1,0 +1,81 @@
+name: Deploy
+
+# Manual trigger only — no auto-deploy on push or merge.
+# Only Pule-Prince and refentse1 can trigger; all other actors see the job
+# skipped without an approval gate or environment restriction.
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service(s) to redeploy'
+        required: true
+        type: choice
+        options:
+          - backend
+          - ui
+          - both
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.service }}
+    # Actor allowlist — anyone else who triggers the dispatch sees this job
+    # as skipped; no environment/required-reviewer dependency needed.
+    if: contains(fromJSON('["Pule-Prince", "refentse1"]'), github.actor)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_SSH_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          # script_stop mirrors set -e at the action level: any unhandled
+          # non-zero exit aborts the rest of the script immediately.
+          # The health-check loop handles its own timeout with || echo so a
+          # slow-starting service surfaces a warning rather than a job failure.
+          script_stop: true
+          script: |
+            set -euo pipefail
+            COMPOSE="docker compose -f /home/ubuntu/docker-compose.prod.yml"
+
+            echo "=== Pulling latest code ==="
+            if [[ "${{ inputs.service }}" == "backend" || "${{ inputs.service }}" == "both" ]]; then
+              cd /home/ubuntu/reporthole-be && git pull && cd /home/ubuntu
+            fi
+            if [[ "${{ inputs.service }}" == "ui" || "${{ inputs.service }}" == "both" ]]; then
+              cd /home/ubuntu/reporthole-ui && git pull
+            fi
+
+            cd /home/ubuntu
+
+            if [[ "${{ inputs.service }}" == "backend" ]]; then
+              SERVICES="reporthole-be"
+            elif [[ "${{ inputs.service }}" == "ui" ]]; then
+              SERVICES="reporthole-ui"
+            else
+              SERVICES="reporthole-be reporthole-ui"
+            fi
+
+            echo "=== Building: $SERVICES ==="
+            $COMPOSE build $SERVICES
+
+            echo "=== Starting: $SERVICES ==="
+            # --no-deps prevents compose from restarting postgres/caddy, which
+            # are declared as depends_on targets but must never be touched here.
+            $COMPOSE up -d --no-deps $SERVICES
+
+            echo "=== Waiting for health checks ==="
+            for svc in $SERVICES; do
+              echo "Waiting for $svc..."
+              # $svc is expanded by the outer shell before bash -c receives it,
+              # so the subshell sees the literal container name.
+              timeout 120 bash -c \
+                "until docker inspect --format='{{.State.Health.Status}}' $svc 2>/dev/null | grep -q healthy; \
+                 do sleep 5; done" \
+              && echo "$svc is healthy" \
+              || echo "WARNING: $svc did not reach healthy state within 120s — check logs below"
+            done
+
+            echo "=== Recent logs ==="
+            $COMPOSE logs --tail=100 $SERVICES
