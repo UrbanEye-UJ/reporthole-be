@@ -37,6 +37,7 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
+            exec 2>&1
             COMPOSE="docker compose -f /home/ubuntu/docker-compose.prod.yml"
 
             echo "=== Pulling latest code ==="
