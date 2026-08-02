@@ -64,8 +64,11 @@ $COMPOSE build $SERVICES
 # ── Start ──────────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Starting: $SERVICES ==="
-# --no-deps prevents compose from restarting postgres/caddy.
-$COMPOSE up -d --no-deps $SERVICES
+# --no-deps       : don't touch postgres or caddy
+# --force-recreate: stop and replace existing containers regardless of which
+#                   compose project originally created them (handles project-name
+#                   mismatches after the compose file was moved on the VM)
+$COMPOSE up -d --no-deps --force-recreate $SERVICES
 
 # ── Health checks ──────────────────────────────────────────────────────────────
 echo ""
