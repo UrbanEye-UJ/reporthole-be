@@ -1,0 +1,38 @@
+name: Restart Services
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service(s) to restart'
+        required: true
+        type: choice
+        options:
+          - backend
+          - ui
+          - caddy
+          - postgres
+          - all
+
+jobs:
+  restart:
+    name: Restart ${{ inputs.service }}
+    if: contains(fromJSON('["Pule-Prince", "refentse1"]'), github.actor)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.OCI_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.OCI_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Restart
+        timeout-minutes: 5
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.OCI_SSH_USER }}@${{ secrets.OCI_HOST }} bash << 'ENDSSH'
+          set -euo pipefail
+          cd /home/ubuntu/reporthole-be && git pull && cd /home/ubuntu
+          bash /home/ubuntu/reporthole-be/scripts/restart.sh "${{ inputs.service }}"
+          ENDSSH
