@@ -35,6 +35,7 @@ jobs:
           # The health-check loop handles its own timeout with || echo so a
           # slow-starting service surfaces a warning rather than a job failure.
           script_stop: true
+          debug: true
           script: |
             set -euo pipefail
             exec 2>&1
