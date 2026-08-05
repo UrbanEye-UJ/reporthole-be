@@ -1,5 +1,6 @@
 package za.co.urbaneye.reporthole.incident.repository;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +15,11 @@ import java.util.UUID;
 public interface IncidentRepository extends JpaRepository<Incident, UUID> {
 
     List<Incident> findByUser_UserId(UUID userId);
+
+    /** Most recently logged, non-deleted incidents across all users, newest first. */
+    List<Incident> findByDeletedFalseOrderByIncidentDateDesc(Pageable pageable);
+
+    long countByDeletedFalse();
 
     @Query("SELECT DISTINCT i FROM Incident i LEFT JOIN IncidentReporter ir ON ir.incident = i WHERE (i.user.userId = :userId OR ir.user.userId = :userId) AND i.deleted = false")
     List<Incident> findAllReportedByUser(@Param("userId") UUID userId);
