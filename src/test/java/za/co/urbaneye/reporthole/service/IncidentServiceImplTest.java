@@ -46,6 +46,12 @@ class IncidentServiceImplTest {
     private za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository incidentReporterRepository;
 
     @Mock
+    private za.co.urbaneye.reporthole.incident.repository.AssignmentWorkflowRepository assignmentWorkflowRepository;
+
+    @Mock
+    private za.co.urbaneye.reporthole.incident.repository.AssignmentRepository assignmentRepository;
+
+    @Mock
     private IncidentSseService incidentSseService;
 
     @Mock
@@ -253,5 +259,173 @@ class IncidentServiceImplTest {
                 RuntimeException.class,
                 () -> incidentService.getIncidentById(id)
         );
+    }
+
+    @Test
+    void verifyIncident_marksReportedIncidentAsVerified_whenCallerIsAdmin() {
+        mockSecurityContext();
+        UUID id = UUID.randomUUID();
+
+        User admin = stubUser();
+        admin.setRole(UserRole.ADMIN);
+        admin.setFirstName("Ada");
+        admin.setLastName("Min");
+
+        Incident incident = new Incident();
+        incident.setIncidentId(id);
+        incident.setIncidentType(IssueType.POTHOLE);
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(admin);
+
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(admin));
+        when(incidentRepository.findById(id)).thenReturn(Optional.of(incident));
+        when(assignmentWorkflowRepository.findFirstByIncident_IncidentIdOrderByUpdatedDateDesc(id))
+                .thenReturn(Optional.empty());
+        when(incidentReporterRepository.findUserIdsByIncidentId(id)).thenReturn(List.of(USER_ID));
+
+        incidentService.verifyIncident(id);
+
+        verify(assignmentWorkflowRepository).save(any());
+        verify(incidentSseService).pushIncidentUpdate(eq(id), eq(Set.of(USER_ID)));
+    }
+
+    @Test
+    void verifyIncident_throws_whenCallerIsNotAdmin() {
+        mockSecurityContext();
+        UUID id = UUID.randomUUID();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(stubUser()));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                za.co.urbaneye.reporthole.incident.exception.AssignmentException.class,
+                () -> incidentService.verifyIncident(id)
+        );
+        verify(assignmentWorkflowRepository, never()).save(any());
+    }
+
+    @Test
+    void verifyIncident_throws_whenIncidentAlreadyVerified() {
+        mockSecurityContext();
+        UUID id = UUID.randomUUID();
+
+        User admin = stubUser();
+        admin.setRole(UserRole.ADMIN);
+
+        Incident incident = new Incident();
+        incident.setIncidentId(id);
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(admin);
+
+        za.co.urbaneye.reporthole.incident.entity.AssignmentWorkflow existingWorkflow =
+                new za.co.urbaneye.reporthole.incident.entity.AssignmentWorkflow();
+        existingWorkflow.setStatus(za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.VERIFIED);
+
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(admin));
+        when(incidentRepository.findById(id)).thenReturn(Optional.of(incident));
+        when(assignmentWorkflowRepository.findFirstByIncident_IncidentIdOrderByUpdatedDateDesc(id))
+                .thenReturn(Optional.of(existingWorkflow));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                za.co.urbaneye.reporthole.incident.exception.AssignmentException.class,
+                () -> incidentService.verifyIncident(id)
+        );
+        verify(assignmentWorkflowRepository, never()).save(any());
+    }
+
+    private za.co.urbaneye.reporthole.incident.entity.Assignment buildPendingAssignment(UUID incidentId, User contractor) {
+        Incident incident = new Incident();
+        incident.setIncidentId(incidentId);
+        incident.setIncidentType(IssueType.POTHOLE);
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(contractor);
+
+        return za.co.urbaneye.reporthole.incident.entity.Assignment.builder()
+                .status(za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.ASSIGNED)
+                .incident(incident)
+                .contractor(contractor)
+                .build();
+    }
+
+    @Test
+    void acceptAssignment_marksInProgress_whenAssignmentIsPending() {
+        mockSecurityContext();
+        UUID incidentId = UUID.randomUUID();
+        User contractor = stubUser();
+        contractor.setRole(UserRole.CONTRACTOR);
+        contractor.setFirstName("Con");
+        contractor.setLastName("Tractor");
+
+        za.co.urbaneye.reporthole.incident.entity.Assignment assignment = buildPendingAssignment(incidentId, contractor);
+
+        when(assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, USER_ID))
+                .thenReturn(Optional.of(assignment));
+        when(incidentReporterRepository.findUserIdsByIncidentId(incidentId)).thenReturn(List.of(USER_ID));
+
+        incidentService.acceptAssignment(incidentId);
+
+        assertThat(assignment.getStatus()).isEqualTo(za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.IN_PROGRESS);
+        verify(assignmentRepository).save(assignment);
+        verify(assignmentWorkflowRepository).save(any());
+        verify(incidentSseService).pushIncidentUpdate(eq(incidentId), eq(Set.of(USER_ID)));
+    }
+
+    @Test
+    void acceptAssignment_throws_whenAssignmentNotPending() {
+        mockSecurityContext();
+        UUID incidentId = UUID.randomUUID();
+        User contractor = stubUser();
+
+        za.co.urbaneye.reporthole.incident.entity.Assignment assignment = buildPendingAssignment(incidentId, contractor);
+        assignment.setStatus(za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.IN_PROGRESS);
+
+        when(assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, USER_ID))
+                .thenReturn(Optional.of(assignment));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                za.co.urbaneye.reporthole.incident.exception.AssignmentException.class,
+                () -> incidentService.acceptAssignment(incidentId)
+        );
+        verify(assignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectAssignment_deletesAssignmentAndRevertsToVerified_whenAssignmentIsPending() {
+        mockSecurityContext();
+        UUID incidentId = UUID.randomUUID();
+        User contractor = stubUser();
+        contractor.setRole(UserRole.CONTRACTOR);
+        contractor.setFirstName("Con");
+        contractor.setLastName("Tractor");
+
+        za.co.urbaneye.reporthole.incident.entity.Assignment assignment = buildPendingAssignment(incidentId, contractor);
+
+        when(assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, USER_ID))
+                .thenReturn(Optional.of(assignment));
+        when(incidentReporterRepository.findUserIdsByIncidentId(incidentId)).thenReturn(List.of(USER_ID));
+
+        incidentService.rejectAssignment(incidentId);
+
+        verify(assignmentRepository).delete(assignment);
+        verify(assignmentWorkflowRepository).save(argThat(workflow ->
+                workflow.getStatus() == za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.VERIFIED));
+        verify(incidentSseService).pushIncidentUpdate(eq(incidentId), eq(Set.of(USER_ID)));
+    }
+
+    @Test
+    void rejectAssignment_throws_whenAssignmentNotPending() {
+        mockSecurityContext();
+        UUID incidentId = UUID.randomUUID();
+        User contractor = stubUser();
+
+        za.co.urbaneye.reporthole.incident.entity.Assignment assignment = buildPendingAssignment(incidentId, contractor);
+        assignment.setStatus(za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.RESOLVED);
+
+        when(assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, USER_ID))
+                .thenReturn(Optional.of(assignment));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                za.co.urbaneye.reporthole.incident.exception.AssignmentException.class,
+                () -> incidentService.rejectAssignment(incidentId)
+        );
+        verify(assignmentRepository, never()).delete(any());
     }
 }
