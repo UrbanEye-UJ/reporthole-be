@@ -55,6 +55,12 @@ public class Assignment {
     @JoinColumn(name = "ASSIGNMENT_CONTRACTOR_USER_ID", nullable = false)
     private User contractor;
 
+    @Column(name = "ASSIGNMENT_RESOLUTION_IMAGE_URL")
+    private String resolutionImageUrl;
+
+    @Column(name = "ASSIGNMENT_RESOLUTION_NOTES", length = 500)
+    private String resolutionNotes;
+
     @PrePersist
     protected void onCreate() {
         this.assignmentDate = LocalDateTime.now();

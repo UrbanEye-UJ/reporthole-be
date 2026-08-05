@@ -25,8 +25,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 import java.util.UUID;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
+import za.co.urbaneye.reporthole.incident.dto.AssignIncidentRequest;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
+import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 
@@ -78,6 +81,25 @@ public class IncidentController {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getMyIncidents()));
     }
 
+    @GetMapping("/recent")
+    @Operation(
+            summary = "Get recent incidents",
+            description = "Returns the most recently logged incidents across all users, ordered by date descending. Intended for admin dashboards."
+    )
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getRecentIncidents(
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getRecentIncidents(limit)));
+    }
+
+    @GetMapping("/stats")
+    @Operation(
+            summary = "Get incident stats",
+            description = "Returns platform-wide totals (total logged, total resolved) for admin dashboard KPI cards."
+    )
+    public ResponseEntity<AppResponse<IncidentStatsDTO>> getIncidentStats() {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentStats()));
+    }
+
     @GetMapping("/my/search")
     @Operation(
             summary = "Search my incidents",
@@ -117,6 +139,91 @@ public class IncidentController {
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> getIncidentById(@PathVariable UUID id) {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentById(id)));
+    }
+
+    @PostMapping("/{id}/verify")
+    @Operation(
+            summary = "Verify incident",
+            description = "Marks a REPORTED incident as VERIFIED, confirming it is a genuine issue. Must happen before the incident can be assigned to a contractor. Admin only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident verified"),
+            @ApiResponse(responseCode = "400", description = "Incident is not in REPORTED status"),
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> verifyIncident(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.verifyIncident(id)));
+    }
+
+    @PostMapping("/{id}/assign")
+    @Operation(
+            summary = "Assign incident to contractor",
+            description = "Assigns the incident to a contractor, creating an Assignment and advancing its status to ASSIGNED. Admin only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident assigned"),
+            @ApiResponse(responseCode = "400", description = "Selected user is not a contractor"),
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin"),
+            @ApiResponse(responseCode = "404", description = "Incident or contractor not found")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> assignIncident(
+            @PathVariable UUID id, @Valid @RequestBody AssignIncidentRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.assignIncident(id, request.contractorId())));
+    }
+
+    @PostMapping("/{id}/accept")
+    @Operation(
+            summary = "Accept assignment",
+            description = "Called by the assigned contractor to accept the incident, advancing its status to IN_PROGRESS."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Assignment accepted"),
+            @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance"),
+            @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> acceptAssignment(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.acceptAssignment(id)));
+    }
+
+    @PostMapping("/{id}/reject")
+    @Operation(
+            summary = "Reject assignment",
+            description = "Called by the assigned contractor to reject the incident. The assignment is removed from " +
+                    "the contractor and the incident reverts to VERIFIED so an admin can assign it to someone else."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Assignment rejected"),
+            @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance"),
+            @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> rejectAssignment(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id)));
+    }
+
+    @GetMapping("/my-assignments")
+    @Operation(
+            summary = "Get my assignments",
+            description = "Returns every incident assigned to the authenticated contractor, any status."
+    )
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getMyAssignments() {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getMyAssignments()));
+    }
+
+    @PostMapping("/{id}/resolve")
+    @Operation(
+            summary = "Resolve incident",
+            description = "Marks the caller's assignment for this incident as RESOLVED, storing a repair photo and note. " +
+                    "Caller must be the contractor this incident is assigned to."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident resolved"),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> resolveIncident(
+            @PathVariable UUID id, @Valid @RequestBody ResolveIncidentRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.resolveIncident(id, request)));
     }
 
     @DeleteMapping("/{id}")

@@ -7,7 +7,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException;
+import za.co.urbaneye.reporthole.admin.contractor.exception.ContractorException;
 import za.co.urbaneye.reporthole.global.entity.ErrorObject;
+import za.co.urbaneye.reporthole.incident.exception.AssignmentException;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 
 import java.time.LocalDateTime;
@@ -112,6 +114,68 @@ public class GlobalExceptionHandler {
             status = HttpStatus.NOT_FOUND;
         } else if (msg.contains("already submitted")) {
             status = HttpStatus.CONFLICT;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles contractor-management business rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — user/auth record missing</li>
+     *     <li>409 Conflict — email already registered</li>
+     *     <li>403 Forbidden — caller is not an admin</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link ContractorException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(ContractorException.class)
+    public ResponseEntity<ErrorObject> handleContractorException(ContractorException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("already exists")) {
+            status = HttpStatus.CONFLICT;
+        } else if (msg.contains("Only admins")) {
+            status = HttpStatus.FORBIDDEN;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles incident-assignment business rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — incident/contractor not found</li>
+     *     <li>403 Forbidden — caller is not an admin</li>
+     *     <li>400 Bad Request — selected user is not a contractor</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link AssignmentException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(AssignmentException.class)
+    public ResponseEntity<ErrorObject> handleAssignmentException(AssignmentException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("Only admins")) {
+            status = HttpStatus.FORBIDDEN;
         } else {
             status = HttpStatus.BAD_REQUEST;
         }
