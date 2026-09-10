@@ -9,10 +9,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 import za.co.urbaneye.reporthole.admin.application.dto.AdminApplicationRequest;
 import za.co.urbaneye.reporthole.admin.application.service.interfaces.IAdminApplicationService;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
@@ -53,5 +56,23 @@ public class AdminApplicationController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(AppResponse.of(null, "Application submitted. We'll be in touch.", 201));
+    }
+
+    @PostMapping("/{id}/approve")
+    @Operation(
+            summary = "Approve an admin application (no auth required)",
+            description = "Promotes the applicant to ADMIN and marks the application APPROVED. " +
+                    "This endpoint is intentionally unauthenticated — it is designed for bootstrap " +
+                    "scenarios where no admin account exists yet. Once the first admin is in place, " +
+                    "use the authenticated approve flow instead."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Application approved and user promoted to ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Application not found"),
+            @ApiResponse(responseCode = "409", description = "Application has already been approved")
+    })
+    public ResponseEntity<AppResponse<Void>> approveOpen(@PathVariable UUID id) {
+        adminApplicationService.approveOpen(id);
+        return ResponseEntity.ok(AppResponse.of(null, "Application approved.", 200));
     }
 }
