@@ -112,7 +112,7 @@ public class GlobalExceptionHandler {
         HttpStatus status;
         if (msg.contains("not found")) {
             status = HttpStatus.NOT_FOUND;
-        } else if (msg.contains("already submitted")) {
+        } else if (msg.contains("already submitted") || msg.contains("already approved")) {
             status = HttpStatus.CONFLICT;
         } else {
             status = HttpStatus.BAD_REQUEST;
