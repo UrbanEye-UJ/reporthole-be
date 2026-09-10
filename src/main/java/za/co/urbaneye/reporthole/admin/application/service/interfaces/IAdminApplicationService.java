@@ -2,6 +2,8 @@ package za.co.urbaneye.reporthole.admin.application.service.interfaces;
 
 import za.co.urbaneye.reporthole.admin.application.dto.AdminApplicationRequest;
 
+import java.util.UUID;
+
 /**
  * Contract for the admin application submission flow.
  *
@@ -22,4 +24,17 @@ public interface IAdminApplicationService {
      *         if the user is not found, is not a CIVILIAN, or has already applied
      */
     void apply(AdminApplicationRequest request);
+
+    /**
+     * Approves a pending application without requiring the caller to hold an active session.
+     *
+     * <p>Intended for bootstrap flows (e.g. a developer approving the very first admin
+     * before any admin account exists). Promotes the applicant to {@code ADMIN} and
+     * marks the application {@code APPROVED}.</p>
+     *
+     * @param applicationId the UUID of the application to approve
+     * @throws za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException
+     *         if the application is not found or has already been approved
+     */
+    void approveOpen(UUID applicationId);
 }
