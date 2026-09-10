@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import za.co.urbaneye.reporthole.admin.application.dto.AdminApplicationRequest;
 import za.co.urbaneye.reporthole.admin.application.entity.AdminApplication;
+import za.co.urbaneye.reporthole.admin.application.entity.AdminApplicationStatus;
 import za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException;
 import za.co.urbaneye.reporthole.admin.application.repository.IAdminApplicationRepository;
 import za.co.urbaneye.reporthole.admin.application.service.interfaces.IAdminApplicationService;
@@ -75,6 +76,27 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
                 request.municipalityToken(),
                 auth.getEmail()
         );
+    }
+
+    @Override
+    @Transactional
+    public void approveOpen(UUID applicationId) {
+        AdminApplication application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new AdminApplicationException("Application not found"));
+
+        if (application.getStatus() == AdminApplicationStatus.APPROVED) {
+            throw new AdminApplicationException("Application already approved");
+        }
+
+        User applicant = application.getUser();
+        applicant.setRole(UserRole.ADMIN);
+        userRepository.save(applicant);
+
+        application.setStatus(AdminApplicationStatus.APPROVED);
+        applicationRepository.save(application);
+
+        log.info("Admin application {} approved (open endpoint) — user {} promoted to ADMIN",
+                applicationId, applicant.getUserId());
     }
 
     private UUID currentUserId() {
