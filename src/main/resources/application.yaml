@@ -1,7 +1,12 @@
+# CVE-2026-9370 (jasypt-spring-boot <=4.0.4) affects SimpleGCMConfig's zero-salt default,
+# which only applies to the gcm-secret-key-* config path. We use the password-based (PBE) path
+# below, whose salt-generator-classname already defaults to RandomSaltGenerator — pinned
+# explicitly here so that default can't silently change in a future library release.
 jasypt:
   encryptor:
     algorithm: PBEWITHHMACSHA512ANDAES_256
     iv-generator-classname: org.jasypt.iv.RandomIvGenerator
+    salt-generator-classname: org.jasypt.salt.RandomSaltGenerator
     password: ${JASYPT_ENCRYPTOR_PASSWORD}
 
 spring:
