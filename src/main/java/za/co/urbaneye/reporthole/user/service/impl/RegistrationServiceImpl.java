@@ -5,6 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import za.co.urbaneye.reporthole.admin.application.entity.AdminApplication;
+import za.co.urbaneye.reporthole.admin.application.entity.AdminApplicationStatus;
+import za.co.urbaneye.reporthole.admin.application.repository.IAdminApplicationRepository;
+import za.co.urbaneye.reporthole.admin.contractor.entity.ContractorInvite;
+import za.co.urbaneye.reporthole.admin.contractor.repository.ContractorInviteRepository;
+import za.co.urbaneye.reporthole.admin.municipality.entity.MunicipalityToken;
+import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityTokenRepository;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
@@ -21,6 +28,8 @@ import za.co.urbaneye.reporthole.user.service.interfaces.IRegistrationService;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -45,6 +54,9 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final IUserMapper mapper;
     private final PasswordEncoder encoder;
     private final IMailService mailService;
+    private final IMunicipalityTokenRepository municipalityTokenRepository;
+    private final IAdminApplicationRepository adminApplicationRepository;
+    private final ContractorInviteRepository contractorInviteRepository;
 
     @Value("${app.features.email-verification-enabled:false}")
     private boolean emailVerificationEnabled;
@@ -77,17 +89,31 @@ public class RegistrationServiceImpl implements IRegistrationService {
                     final User existingUser = userRepository.findById(auth.getAuthId()).orElse(null);
                     final String firstName = existingUser != null ? existingUser.getFirstName() : "there";
                     final String verifyUrl = verificationBaseUrl + auth.getVerificationToken();
-                    mailService.sendVerificationEmail(auth.getEmail(), firstName, verifyUrl);
+                    if (existingUser != null && existingUser.getRole() == UserRole.CONTRACTOR) {
+                        mailService.sendContractorVerificationEmail(auth.getEmail(), firstName, verifyUrl);
+                    } else if (existingUser != null && existingUser.getRole() == UserRole.ADMIN) {
+                        mailService.sendAdminVerificationEmail(auth.getEmail(), firstName, verifyUrl);
+                    } else {
+                        mailService.sendVerificationEmail(auth.getEmail(), firstName, verifyUrl);
+                    }
                     log.info("Resent verification email for pending account {}", auth.getAuthId());
                     return;
                 }
                 throw new UserServiceException("User already exists");
             }
 
+            // Resolve the optional token before persisting anything — a bad token should fail fast.
+            // A UUID string → contractor invite. Any other string → municipality admin token.
+            final ContractorInvite contractorInvite = resolveContractorInvite(user.token());
+            final MunicipalityToken municipalityToken = contractorInvite != null
+                    ? null
+                    : resolveMunicipalityToken(user.token());
+
             final UserAuth authEntity = mapper.toAuthEntity(user);
             authEntity.setEmailHash(emailHash);
             authEntity.setPassword(encoder.encode(user.password()));
-            authEntity.setStatus(emailVerificationEnabled ? UserStatus.PENDING_VERIFICATION : UserStatus.ACTIVE);
+            authEntity.setStatus(emailVerificationEnabled
+                    ? UserStatus.PENDING_VERIFICATION : UserStatus.ACTIVE);
 
             if (emailVerificationEnabled) {
                 authEntity.setVerificationToken(UUID.randomUUID().toString());
@@ -98,14 +124,47 @@ public class RegistrationServiceImpl implements IRegistrationService {
 
             final User userEntity = mapper.toUserEntity(user);
             userEntity.setUserId(savedAuth.getAuthId());
-            userEntity.setRole(UserRole.CIVILIAN);
+
+            if (contractorInvite != null) {
+                userEntity.setRole(UserRole.CONTRACTOR);
+                userEntity.setSpecialisations(new HashSet<>(contractorInvite.getSpecialisations()));
+            } else if (municipalityToken != null) {
+                userEntity.setRole(UserRole.ADMIN);
+            } else {
+                userEntity.setRole(UserRole.CIVILIAN);
+            }
+
             final User savedUser = userRepository.save(userEntity);
+
+            if (contractorInvite != null) {
+                contractorInvite.setUsed(true);
+                contractorInviteRepository.save(contractorInvite);
+                log.info("User {} registered as CONTRACTOR via invite token", savedUser.getUserId());
+            } else if (municipalityToken != null) {
+                // Record how this admin was onboarded, so it shows in GET /admin/applications
+                // alongside the legacy apply/approve flow. Already APPROVED — the security admin
+                // vouched by issuing the token.
+                adminApplicationRepository.save(AdminApplication.builder()
+                        .user(savedUser)
+                        .municipalityToken(municipalityToken.getToken())
+                        .municipality(municipalityToken.getMunicipality())
+                        .status(AdminApplicationStatus.APPROVED)
+                        .build());
+                log.info("User {} registered as ADMIN via municipality token for '{}'",
+                        savedUser.getUserId(), municipalityToken.getMunicipality().getName());
+            }
 
             log.info("User registered successfully: {}", savedUser.getUserId());
 
             if (emailVerificationEnabled) {
                 final String verifyUrl = verificationBaseUrl + savedAuth.getVerificationToken();
-                mailService.sendVerificationEmail(savedAuth.getEmail(), savedUser.getFirstName(), verifyUrl);
+                if (contractorInvite != null) {
+                    mailService.sendContractorVerificationEmail(savedAuth.getEmail(), savedUser.getFirstName(), verifyUrl);
+                } else if (municipalityToken != null) {
+                    mailService.sendAdminVerificationEmail(savedAuth.getEmail(), savedUser.getFirstName(), verifyUrl);
+                } else {
+                    mailService.sendVerificationEmail(savedAuth.getEmail(), savedUser.getFirstName(), verifyUrl);
+                }
             }
 
         } catch (final UserServiceException ex) {
@@ -113,6 +172,59 @@ public class RegistrationServiceImpl implements IRegistrationService {
         } catch (final Exception ex) {
             log.error(ex.getMessage(), ex);
             throw new UserServiceException(ex.getMessage());
+        }
+    }
+
+    /**
+     * Tries to interpret {@code rawToken} as a contractor invite (UUID format).
+     *
+     * @return the matching, unused, non-expired {@link ContractorInvite}, or {@code null} if the
+     *         token is blank or not a valid UUID (caller should then try the municipality path)
+     * @throws UserServiceException if the UUID parses but the invite is not found, already used, or expired
+     */
+    private ContractorInvite resolveContractorInvite(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return null;
+        }
+        final Optional<UUID> uuid = tryParseUuid(rawToken.trim());
+        if (uuid.isEmpty()) {
+            return null; // not UUID-shaped — caller tries municipality token instead
+        }
+        final ContractorInvite invite = contractorInviteRepository.findByToken(uuid.get())
+                .orElseThrow(() -> new UserServiceException("Invalid or expired invite token"));
+        if (invite.isUsed()) {
+            throw new UserServiceException("This invite token has already been used");
+        }
+        if (invite.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new UserServiceException("This invite token has expired");
+        }
+        return invite;
+    }
+
+    /**
+     * Resolves an optional municipality registration token.
+     *
+     * @param rawToken the value from the registration form; null / blank means a normal signup
+     * @return the resolved, usable {@link MunicipalityToken}, or {@code null} when no token was given
+     * @throws UserServiceException if a token was given but does not exist, is revoked, or has expired
+     */
+    private MunicipalityToken resolveMunicipalityToken(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return null;
+        }
+        final MunicipalityToken token = municipalityTokenRepository.findByToken(rawToken.trim())
+                .orElseThrow(() -> new UserServiceException("Invalid or expired invite token"));
+        if (!token.isUsable()) {
+            throw new UserServiceException("Invalid or expired invite token");
+        }
+        return token;
+    }
+
+    private static Optional<UUID> tryParseUuid(String s) {
+        try {
+            return Optional.of(UUID.fromString(s));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
         }
     }
 

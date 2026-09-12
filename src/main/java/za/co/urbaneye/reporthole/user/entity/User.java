@@ -1,13 +1,16 @@
 package za.co.urbaneye.reporthole.user.entity;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -15,9 +18,12 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.security.Aes;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -88,6 +94,17 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "USER_ROLE", nullable = false)
     private UserRole role;
+
+    /**
+     * Issue types this user is qualified to be assigned, e.g. {@code POTHOLE}, {@code BROKEN_TRAFFIC_LIGHT}.
+     * Only meaningful for {@code CONTRACTOR} accounts — empty for civilians and admins.
+     */
+    @ElementCollection(targetClass = IssueType.class)
+    @CollectionTable(name = "contractor_specialisation", joinColumns = @JoinColumn(name = "USER_ID"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ISSUE_TYPE")
+    @Builder.Default
+    private Set<IssueType> specialisations = new HashSet<>();
 
     /**
      * Timestamp when the user account was created.

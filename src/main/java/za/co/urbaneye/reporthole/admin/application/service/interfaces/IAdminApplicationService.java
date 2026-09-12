@@ -1,11 +1,18 @@
 package za.co.urbaneye.reporthole.admin.application.service.interfaces;
 
 import za.co.urbaneye.reporthole.admin.application.dto.AdminApplicationRequest;
+import za.co.urbaneye.reporthole.admin.application.dto.AdminApplicationResponse;
+import za.co.urbaneye.reporthole.admin.application.entity.AdminApplicationStatus;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Contract for the admin application submission flow.
+ * Contract for the admin application submission and review flow.
+ *
+ * <p>Submission is open to any {@code CIVILIAN}. Review — listing, approving, rejecting — is
+ * restricted to {@code SECURITY_ADMIN}, because approving an application grants the
+ * {@code ADMIN} role and role grants are the security admin's responsibility.</p>
  *
  * @author Refentse
  * @since 1.0
@@ -26,15 +33,34 @@ public interface IAdminApplicationService {
     void apply(AdminApplicationRequest request);
 
     /**
-     * Approves a pending application without requiring the caller to hold an active session.
+     * Returns admin-access records for the reviewing security admin.
      *
-     * <p>Intended for bootstrap flows (e.g. a developer approving the very first admin
-     * before any admin account exists). Promotes the applicant to {@code ADMIN} and
-     * marks the application {@code APPROVED}.</p>
-     *
-     * @param applicationId the UUID of the application to approve
+     * @param status optional filter; {@code null} returns every record (PENDING, APPROVED and
+     *               REJECTED), most recently submitted first
+     * @return the matching records
      * @throws za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException
-     *         if the application is not found or has already been approved
+     *         if the caller is not a SECURITY_ADMIN
      */
-    void approveOpen(UUID applicationId);
+    List<AdminApplicationResponse> listApplications(AdminApplicationStatus status);
+
+    /**
+     * Approves a pending application: promotes the applicant to {@code ADMIN}, marks the
+     * application {@code APPROVED}, invalidates the applicant's existing sessions, writes an
+     * append-only access-control audit row, and sends a decision email to the applicant.
+     *
+     * @param applicationId the application to approve
+     * @throws za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException
+     *         if the caller is not a SECURITY_ADMIN, the application is not found, or it is not PENDING
+     */
+    void approve(UUID applicationId);
+
+    /**
+     * Rejects a pending application, marking it {@code REJECTED} without changing the
+     * applicant's role. Sends a decision email to the applicant.
+     *
+     * @param applicationId the application to reject
+     * @throws za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException
+     *         if the caller is not a SECURITY_ADMIN, the application is not found, or it is not PENDING
+     */
+    void reject(UUID applicationId);
 }

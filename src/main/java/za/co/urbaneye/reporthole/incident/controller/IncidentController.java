@@ -29,6 +29,7 @@ import za.co.urbaneye.reporthole.incident.dto.AssignIncidentRequest;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.ProgressUpdateRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
@@ -201,6 +202,22 @@ public class IncidentController {
         return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id)));
     }
 
+    @PostMapping("/{id}/progress")
+    @Operation(
+            summary = "Add progress update",
+            description = "Called by the assigned contractor to post a free-text progress note while the incident is IN_PROGRESS. " +
+                    "Each note is appended to the incident's workflow history, visible to admins."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Progress update recorded"),
+            @ApiResponse(responseCode = "400", description = "Incident is not IN_PROGRESS or note is blank"),
+            @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> addProgressUpdate(
+            @PathVariable UUID id, @Valid @RequestBody ProgressUpdateRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.addProgressUpdate(id, request.note())));
+    }
+
     @GetMapping("/my-assignments")
     @Operation(
             summary = "Get my assignments",
@@ -236,5 +253,33 @@ public class IncidentController {
     public ResponseEntity<Void> deleteIncident(@PathVariable UUID id) {
         incidentService.deleteIncident(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/still-unresolved")
+    @Operation(
+            summary = "Report incident still unresolved",
+            description = "Reopens a RESOLVED incident: reverts it to VERIFIED so an admin can reassign it, and " +
+                    "links the reporting user so they receive future updates."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident reopened"),
+            @ApiResponse(responseCode = "400", description = "Incident is not currently RESOLVED"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> reportStillUnresolved(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.reportStillUnresolved(id)));
+    }
+
+    @GetMapping("/nearby")
+    @Operation(
+            summary = "Get nearby incidents",
+            description = "Returns non-deleted incidents within radiusMeters of the given point, closest first — " +
+                    "shown to a civilian before they submit a report so they can avoid creating a duplicate."
+    )
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getNearbyIncidents(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(defaultValue = "1000") double radiusMeters) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getNearbyIncidents(latitude, longitude, radiusMeters)));
     }
 }

@@ -54,10 +54,12 @@ public interface IUserMapper {
     @Mapping(target = "verificationTokenExpiresAt", ignore = true)
     @Mapping(target = "passwordResetToken", ignore = true)
     @Mapping(target = "passwordResetTokenExpiresAt", ignore = true)
+    @Mapping(target = "credentialsValidFrom", ignore = true)
     UserAuth toAuthEntity(RegisterRequest user);
 
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "specialisations", ignore = true)
     User toUserEntity(RegisterRequest user);
 
     /**
@@ -75,5 +77,6 @@ public interface IUserMapper {
     @Mapping(target = "phoneNumber", ignore = true)
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "specialisations", ignore = true)
     User toAuthEntity(LoginRequest user);
 }

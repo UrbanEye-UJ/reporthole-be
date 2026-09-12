@@ -1,7 +1,9 @@
 package za.co.urbaneye.reporthole.inference.service.interfaces;
 
+import za.co.urbaneye.reporthole.inference.dto.EscalatedFrameDTO;
 import za.co.urbaneye.reporthole.inference.dto.FrameAcceptedResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -29,4 +31,26 @@ public interface IFrameSubmissionService {
      * @return a response containing a unique {@code frameId} and initial status {@code PENDING}
      */
     FrameAcceptedResponse submit(byte[] imageBytes, UUID deviceUserId);
+
+    /**
+     * Returns all completed frames whose routing decision was {@code ESCALATE},
+     * ordered oldest-first so the operator works through the backlog in arrival order.
+     */
+    List<EscalatedFrameDTO> getEscalatedFrames();
+
+    /**
+     * Promotes an escalated frame to an incident and removes it from the review queue.
+     *
+     * @param frameId the frame to approve
+     * @throws java.util.NoSuchElementException if no escalated frame with that ID exists
+     */
+    void approveFrame(UUID frameId);
+
+    /**
+     * Discards an escalated frame without creating an incident.
+     *
+     * @param frameId the frame to discard
+     * @throws java.util.NoSuchElementException if no escalated frame with that ID exists
+     */
+    void discardFrame(UUID frameId);
 }

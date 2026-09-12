@@ -10,7 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
 import za.co.urbaneye.reporthole.inference.dto.DetectionDTO;
+import za.co.urbaneye.reporthole.inference.dto.EscalatedFrameDTO;
 import za.co.urbaneye.reporthole.inference.dto.FrameAcceptedResponse;
 import za.co.urbaneye.reporthole.inference.dto.PredictResponseDTO;
 import za.co.urbaneye.reporthole.inference.entity.InferenceResult;
@@ -26,6 +30,8 @@ import za.co.urbaneye.reporthole.inference.service.OnnxInferenceService;
 import za.co.urbaneye.reporthole.inference.service.interfaces.IFrameSubmissionService;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 /**
@@ -159,6 +165,67 @@ public class InferenceController {
             log.warn("Inference queue full — rejecting frame from user {}", deviceUserId);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(AppResponse.of(null, ex.getMessage(), 503));
+        }
+    }
+
+    /**
+     * Returns all dashcam frames that completed inference with a routing decision
+     * of {@code ESCALATE} and are awaiting operator review.
+     *
+     * <p>Restricted to {@code ADMIN} and {@code SECURITY_ADMIN} roles.</p>
+     *
+     * @return list of escalated frames, oldest-first
+     */
+    @GetMapping("/escalated")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECURITY_ADMIN')")
+    @Operation(
+            summary = "List escalated dashcam frames",
+            description = "Returns frames whose confidence fell between the discard and auto-log thresholds. " +
+                    "An operator must approve (create incident) or discard each one."
+    )
+    public ResponseEntity<AppResponse<List<EscalatedFrameDTO>>> getEscalatedFrames() {
+        return ResponseEntity.ok(AppResponse.ok(frameSubmissionService.getEscalatedFrames()));
+    }
+
+    /**
+     * Approves an escalated frame: creates an incident from it and removes it from the queue.
+     *
+     * @param frameId the frame to approve
+     * @return 204 No Content on success; 404 if the frame is not in the escalation queue
+     */
+    @PostMapping("/escalated/{frameId}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECURITY_ADMIN')")
+    @Operation(
+            summary = "Approve an escalated frame",
+            description = "Creates an incident from the frame and removes it from the human-review queue."
+    )
+    public ResponseEntity<Void> approveFrame(@PathVariable UUID frameId) {
+        try {
+            frameSubmissionService.approveFrame(frameId);
+            return ResponseEntity.noContent().build();
+        } catch (NoSuchElementException ex) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Discards an escalated frame without creating an incident.
+     *
+     * @param frameId the frame to discard
+     * @return 204 No Content on success; 404 if the frame is not in the escalation queue
+     */
+    @PostMapping("/escalated/{frameId}/discard")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECURITY_ADMIN')")
+    @Operation(
+            summary = "Discard an escalated frame",
+            description = "Removes the frame from the human-review queue without creating an incident."
+    )
+    public ResponseEntity<Void> discardFrame(@PathVariable UUID frameId) {
+        try {
+            frameSubmissionService.discardFrame(frameId);
+            return ResponseEntity.noContent().build();
+        } catch (NoSuchElementException ex) {
+            return ResponseEntity.notFound().build();
         }
     }
 }

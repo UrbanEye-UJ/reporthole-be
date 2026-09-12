@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException;
 import za.co.urbaneye.reporthole.admin.contractor.exception.ContractorException;
+import za.co.urbaneye.reporthole.admin.municipality.exception.MunicipalityException;
+import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
 import za.co.urbaneye.reporthole.global.entity.ErrorObject;
 import za.co.urbaneye.reporthole.incident.exception.AssignmentException;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
@@ -76,6 +78,8 @@ public class GlobalExceptionHandler {
             status = HttpStatus.NOT_FOUND;                    // 404
         } else if (msg.contains("locked") || msg.contains("Too many")) {
             status = HttpStatus.LOCKED;                       // 423
+        } else if (msg.contains("suspended")) {
+            status = HttpStatus.FORBIDDEN;                    // 403 — administratively suspended
         } else if (msg.contains("not verified")) {
             status = HttpStatus.FORBIDDEN;                    // 403
         } else if (msg.contains("Invalid or expired reset link")) {
@@ -97,8 +101,9 @@ public class GlobalExceptionHandler {
      *
      * <p>Returns:</p>
      * <ul>
-     *     <li>404 Not Found — user record missing</li>
-     *     <li>409 Conflict — application already submitted</li>
+     *     <li>404 Not Found — user/application record missing</li>
+     *     <li>409 Conflict — application already submitted, or already processed</li>
+     *     <li>403 Forbidden — caller is not a security admin (review endpoints)</li>
      *     <li>400 Bad Request — role guard (already ADMIN or CONTRACTOR)</li>
      * </ul>
      *
@@ -112,8 +117,10 @@ public class GlobalExceptionHandler {
         HttpStatus status;
         if (msg.contains("not found")) {
             status = HttpStatus.NOT_FOUND;
-        } else if (msg.contains("already submitted") || msg.contains("already approved")) {
+        } else if (msg.contains("already submitted") || msg.contains("already been processed")) {
             status = HttpStatus.CONFLICT;
+        } else if (msg.contains("Only admins") || msg.contains("Only security admins")) {
+            status = HttpStatus.FORBIDDEN;
         } else {
             status = HttpStatus.BAD_REQUEST;
         }
@@ -130,6 +137,7 @@ public class GlobalExceptionHandler {
      *     <li>404 Not Found — user/auth record missing</li>
      *     <li>409 Conflict — email already registered</li>
      *     <li>403 Forbidden — caller is not an admin</li>
+     *     <li>401 Unauthorized — incorrect password on a reveal-email step-up check</li>
      * </ul>
      *
      * @param ex the thrown {@link ContractorException}
@@ -142,10 +150,79 @@ public class GlobalExceptionHandler {
         HttpStatus status;
         if (msg.contains("not found")) {
             status = HttpStatus.NOT_FOUND;
-        } else if (msg.contains("already exists")) {
+        } else if (msg.contains("already exists") || msg.contains("already been sent")) {
             status = HttpStatus.CONFLICT;
         } else if (msg.contains("Only admins")) {
             status = HttpStatus.FORBIDDEN;
+        } else if (msg.contains("Incorrect password")) {
+            status = HttpStatus.UNAUTHORIZED;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles security-admin identity/accountability business rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — caller or target account missing</li>
+     *     <li>403 Forbidden — caller is not a security admin</li>
+     *     <li>400 Bad Request — caller attempted to act on their own account</li>
+     *     <li>409 Conflict — account already in the requested state (already has the role,
+     *         already suspended, not suspended, nothing to revoke)</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link SecurityAdminException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(SecurityAdminException.class)
+    public ResponseEntity<ErrorObject> handleSecurityAdminException(SecurityAdminException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("Only security admins")) {
+            status = HttpStatus.FORBIDDEN;
+        } else if (msg.contains("cannot")) {
+            status = HttpStatus.BAD_REQUEST;
+        } else {
+            status = HttpStatus.CONFLICT;
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles municipality / municipality-token business rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — municipality or token missing</li>
+     *     <li>403 Forbidden — caller is not a security admin</li>
+     *     <li>409 Conflict — duplicate municipality name, or token already revoked</li>
+     *     <li>400 Bad Request — anything else</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link MunicipalityException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(MunicipalityException.class)
+    public ResponseEntity<ErrorObject> handleMunicipalityException(MunicipalityException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("Only security admins")) {
+            status = HttpStatus.FORBIDDEN;
+        } else if (msg.contains("already exists") || msg.contains("already revoked")) {
+            status = HttpStatus.CONFLICT;
         } else {
             status = HttpStatus.BAD_REQUEST;
         }

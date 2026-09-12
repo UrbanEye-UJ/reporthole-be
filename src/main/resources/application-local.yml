@@ -30,6 +30,16 @@ mail:
   password-reset-subject: "Reset your Reporthole password"
   admin-application-subject: "Admin Access Request — Reporthole"
 
+app:
+  test-data:
+    enabled: true
+    civilian-email: civilian@reporthole-test.local
+    civilian-password: Test@k6Civilian1
+    admin-email: admin@reporthole-test.local
+    admin-password: Test@k6Admin1
+    contractor-email: contractor@reporthole-test.local
+    contractor-password: Test@k6Contractor1
+
 services:
   web:
     base-url: ${SERVICES_WEB_BASE_URL:}

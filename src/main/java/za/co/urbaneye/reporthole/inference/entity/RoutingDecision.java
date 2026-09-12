@@ -5,13 +5,13 @@ import za.co.urbaneye.reporthole.inference.config.InferenceProperties;
 /**
  * Three-tier routing decision based on detection confidence.
  *
- * <p>Mirrors the thresholds defined on the frontend dashcam page
- * ({@code DISCARD_THRESHOLD = 0.65}, {@code AUTO_LOG_THRESHOLD = 0.80}).
+ * <p>Mirrors the thresholds defined on the frontend dashcam and manual-report
+ * flows ({@code DISCARD_THRESHOLD = 0.65}, {@code AUTO_LOG_THRESHOLD = 0.75}).
  * Thresholds are read from {@link InferenceProperties} so they can be
  * overridden without recompiling.</p>
  *
  * <ul>
- *   <li>{@code AUTO_LOG}  — confidence ≥ autoLogThreshold (default 0.80);
+ *   <li>{@code AUTO_LOG}  — confidence ≥ autoLogThreshold (default 0.75);
  *       incident created immediately without user intervention</li>
  *   <li>{@code ESCALATE}  — confidence ≥ discardThreshold (default 0.65) and below autoLogThreshold;
  *       event held in the log; user must confirm before incident is created</li>

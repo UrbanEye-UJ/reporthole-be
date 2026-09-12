@@ -74,5 +74,31 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
     @Modifying
     @Query("UPDATE Incident i SET i.reportCount = i.reportCount + 1 WHERE i.incidentId = :id")
     void incrementReportCount(@Param("id") UUID id);
+
+    /**
+     * Returns non-deleted incidents within radiusMeters of the given point, closest first,
+     * regardless of issue type — used to show a civilian what's already nearby before they
+     * submit a report, distinct from {@link #findNearestDuplicate} which filters by type.
+     */
+    @Query(value = """
+            SELECT *
+            FROM incident
+            WHERE ST_DWithin(
+                ST_SetSRID(INCIDENT_LOCATION, 4326)::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+                :radiusMeters
+            )
+            AND INCIDENT_DELETED = false
+            ORDER BY ST_Distance(
+                ST_SetSRID(INCIDENT_LOCATION, 4326)::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+            )
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Incident> findNearby(
+            @Param("latitude") double latitude,
+            @Param("longitude") double longitude,
+            @Param("radiusMeters") double radiusMeters
+    );
 }
 

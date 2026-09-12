@@ -85,8 +85,8 @@ public class SecurityConfig {
                     .requestMatchers("/uploads/**").permitAll()
                     // Inference endpoint is called server-side from Next.js — no user auth context available
                     .requestMatchers("/inference/**").permitAll()
-                    // Unauthenticated approve — bootstrap flow for promoting the first admin before any admin account exists
-                    .requestMatchers(HttpMethod.POST, "/admin/applications/*/approve").permitAll()
+                    // Invite token acts as the credential — no JWT yet when the contractor registers
+                    .requestMatchers(HttpMethod.POST, "/contractors/complete-registration").permitAll()
                     .requestMatchers("/incidents/**").authenticated()
                     .anyRequest().authenticated()
             )

@@ -1,0 +1,65 @@
+name: Regression Tests
+
+# Manual trigger only — run from the Actions tab ("Run workflow") or `gh workflow run
+# regression.yml` whenever you want a full backend regression pass without opening a PR.
+# Separate from build.yml (the pull_request gate) so it never affects that automated check.
+#
+# Unlike build.yml, this spins up a real Postgres+PostGIS service so the
+# @ActiveProfiles("local") integration tests (SecurityAdminIntegrationTest,
+# IncidentIntegrationTest, DeviceIntegrationTest, AuthIntegrationTest, and
+# ReportholeBeApplicationTests.contextLoads) can actually start their ApplicationContext
+# and run, instead of erroring out for lack of a database.
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Backend test suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: reporthole
+          POSTGRES_PASSWORD: reporthole
+          POSTGRES_DB: reporthole
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U reporthole -d reporthole"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      # postgis/postgis enables the extension on its own default database at first boot, but
+      # this makes the requirement explicit and keeps the job self-contained if that ever changes.
+      - name: Ensure PostGIS extension is enabled
+        run: psql "postgresql://reporthole:reporthole@localhost:5432/reporthole" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+
+      - name: Run full test suite (unit + integration)
+        env:
+          # jasypt-spring-boot only needs this to resolve the ENC(...) placeholders in
+          # src/main/resources/application.yaml at startup — the "local" test profile's
+          # src/test/resources/application.yaml supplies plaintext keys instead, so nothing
+          # actually gets decrypted with it. Any non-empty value satisfies Spring here.
+          JASYPT_ENCRYPTOR_PASSWORD: ci-regression-run
+          POSTGRES_USERNAME: reporthole
+          POSTGRES_PASSWORD: reporthole
+        run: ./mvnw test --no-transfer-progress

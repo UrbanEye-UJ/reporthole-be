@@ -37,6 +37,9 @@ public interface IncidentService {
     /** Marks the caller's assignment for this incident as RESOLVED, storing the repair photo and note. */
     IncidentResponseDTO resolveIncident(UUID incidentId, ResolveIncidentRequest request);
 
+    /** Contractor posts a free-text progress note while the incident is IN_PROGRESS. */
+    IncidentResponseDTO addProgressUpdate(UUID incidentId, String note);
+
     /** Returns the authenticated user's incidents filtered by keyword and/or issue type. */
     List<IncidentResponseDTO> searchMyIncidents(String keyword, IssueType issueType);
 
@@ -45,4 +48,20 @@ public interface IncidentService {
 
     /** Soft-deletes the incident. Only the original reporter may delete their own incident. */
     void deleteIncident(UUID incidentId);
+
+    /**
+     * Re-opens a RESOLVED incident: reverts it to VERIFIED so it can be reassigned, and
+     * links the reporting user via {@code IncidentReporter} (idempotent).
+     *
+     * @throws za.co.urbaneye.reporthole.incident.exception.AssignmentException
+     *         if the incident is not currently RESOLVED
+     */
+    IncidentResponseDTO reportStillUnresolved(UUID incidentId);
+
+    /**
+     * Returns non-deleted incidents within {@code radiusMeters} of the given point, closest
+     * first, so a civilian can see what's already been reported nearby before submitting —
+     * independent of issue type, unlike the submission-time duplicate check.
+     */
+    List<IncidentResponseDTO> getNearbyIncidents(double latitude, double longitude, double radiusMeters);
 }

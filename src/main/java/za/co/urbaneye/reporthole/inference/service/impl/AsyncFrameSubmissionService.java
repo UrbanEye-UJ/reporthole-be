@@ -13,6 +13,7 @@ import za.co.urbaneye.reporthole.incident.entity.IncidentSource;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 import za.co.urbaneye.reporthole.inference.config.InferenceProperties;
+import za.co.urbaneye.reporthole.inference.dto.EscalatedFrameDTO;
 import za.co.urbaneye.reporthole.inference.dto.FrameAcceptedResponse;
 import za.co.urbaneye.reporthole.inference.entity.FrameJob;
 import za.co.urbaneye.reporthole.inference.entity.FrameStatus;
@@ -24,7 +25,9 @@ import za.co.urbaneye.reporthole.inference.service.interfaces.IFrameSubmissionSe
 
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
@@ -190,6 +193,43 @@ public class AsyncFrameSubmissionService implements IFrameSubmissionService {
             job.setStatus(FrameStatus.FAILED);
             job.setErrorMessage("Inference succeeded but incident creation failed: " + ex.getMessage());
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<EscalatedFrameDTO> getEscalatedFrames() {
+        return jobs.values().stream()
+                .filter(j -> j.getStatus() == FrameStatus.DONE
+                        && RoutingDecision.ESCALATE.name().equals(j.getRoutingDecision()))
+                .sorted(Comparator.comparing(FrameJob::getCreatedAt))
+                .map(EscalatedFrameDTO::from)
+                .toList();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void approveFrame(UUID frameId) {
+        FrameJob job = getEscalatedJob(frameId);
+        InferenceResult result = new InferenceResult(true, job.getLabel(), null, job.getConfidence());
+        createIncidentForFrame(frameId, job, result);
+        jobs.remove(frameId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void discardFrame(UUID frameId) {
+        getEscalatedJob(frameId);
+        jobs.remove(frameId);
+        log.info("[Frame {}] Discarded by admin operator", frameId);
+    }
+
+    private FrameJob getEscalatedJob(UUID frameId) {
+        FrameJob job = jobs.get(frameId);
+        if (job == null || job.getStatus() != FrameStatus.DONE
+                || !RoutingDecision.ESCALATE.name().equals(job.getRoutingDecision())) {
+            throw new NoSuchElementException("No escalated frame found with id: " + frameId);
+        }
+        return job;
     }
 
     /**

@@ -13,6 +13,7 @@ import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
+import za.co.urbaneye.reporthole.incident.dto.WorkflowEntryDTO;
 import za.co.urbaneye.reporthole.incident.entity.Assignment;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentWorkflow;
@@ -26,7 +27,9 @@ import za.co.urbaneye.reporthole.incident.repository.IncidentRepository;
 import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
+import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
@@ -48,8 +51,10 @@ public class IncidentServiceImpl implements IncidentService {
     private final AssignmentWorkflowRepository assignmentWorkflowRepository;
     private final AssignmentRepository assignmentRepository;
     private final IUserRepository userRepository;
+    private final IUserAuthRepository userAuthRepository;
     private final ImageStorageService imageStorageService;
     private final IncidentSseService incidentSseService;
+    private final IMailService mailService;
 
     private static final double MANUAL_DUPLICATE_RADIUS_METRES = 1_000.0;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
@@ -227,6 +232,10 @@ public class IncidentServiceImpl implements IncidentService {
         if (contractor.getRole() != UserRole.CONTRACTOR) {
             throw new AssignmentException("Selected user is not a contractor");
         }
+        if (!contractor.getSpecialisations().contains(incident.getIncidentType())) {
+            throw new AssignmentException(
+                    "Contractor is not specialised in " + incident.getIncidentType());
+        }
 
         assignmentRepository.save(
                 Assignment.builder()
@@ -241,6 +250,16 @@ public class IncidentServiceImpl implements IncidentService {
         workflow.setStatus(AssignmentStatus.ASSIGNED);
         workflow.setNotes("Assigned to " + contractor.getFirstName() + " " + contractor.getLastName());
         assignmentWorkflowRepository.save(workflow);
+
+        UserAuth contractorAuth = userAuthRepository.findById(contractor.getUserId())
+                .orElseThrow(() -> new AssignmentException("Contractor auth record not found"));
+        mailService.sendJobAssignedEmail(
+                contractorAuth.getEmail(),
+                contractor.getFirstName(),
+                incident.getIncidentType().name(),
+                incident.getLocationAddress(),
+                incident.getIncidentId().toString()
+        );
 
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
@@ -349,6 +368,34 @@ public class IncidentServiceImpl implements IncidentService {
 
     @Override
     @Transactional
+    public IncidentResponseDTO addProgressUpdate(UUID incidentId, String note) {
+        final UUID contractorId = currentUserId();
+        Assignment assignment = assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, contractorId)
+                .orElseThrow(() -> new AssignmentException("Assignment not found for this contractor and incident"));
+
+        if (assignment.getStatus() != AssignmentStatus.IN_PROGRESS) {
+            throw new AssignmentException("Progress updates can only be added while the incident is IN_PROGRESS");
+        }
+
+        User contractor = assignment.getContractor();
+        Incident incident = assignment.getIncident();
+
+        AssignmentWorkflow update = AssignmentWorkflow.builder()
+                .incident(incident)
+                .updatedBy(contractor)
+                .status(AssignmentStatus.IN_PROGRESS)
+                .notes(note)
+                .build();
+        assignmentWorkflowRepository.save(update);
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    @Transactional
     public IncidentResponseDTO resolveIncident(UUID incidentId, ResolveIncidentRequest request) {
         final UUID contractorId = currentUserId();
         Assignment assignment = assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, contractorId)
@@ -388,9 +435,52 @@ public class IncidentServiceImpl implements IncidentService {
         incidentRepository.save(incident);
     }
 
+    @Override
+    @Transactional
+    public IncidentResponseDTO reportStillUnresolved(UUID incidentId) {
+        final UUID userId = currentUserId();
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserServiceException("User not found"));
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new AssignmentException("Incident not found: " + incidentId));
+
+        if (resolveStatus(incidentId) != AssignmentStatus.RESOLVED) {
+            throw new AssignmentException("Only resolved incidents can be reported as still unresolved");
+        }
+
+        AssignmentWorkflow workflow = new AssignmentWorkflow();
+        workflow.setIncident(incident);
+        workflow.setStatus(AssignmentStatus.VERIFIED);
+        workflow.setNotes("Reported still unresolved by " + user.getFirstName() + " " + user.getLastName());
+        assignmentWorkflowRepository.save(workflow);
+
+        boolean alreadyLinked = incidentReporterRepository.existsByIncident_IncidentIdAndUser_UserId(incidentId, userId);
+        if (!alreadyLinked) {
+            incidentReporterRepository.save(new IncidentReporter(incident, user));
+        }
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    public List<IncidentResponseDTO> getNearbyIncidents(double latitude, double longitude, double radiusMeters) {
+        return incidentRepository.findNearby(latitude, longitude, radiusMeters).stream()
+                .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
+                .toList();
+    }
+
     private IncidentResponseDTO toResponseDTO(Incident incident, UUID userId) {
+        UUID incidentId = incident.getIncidentId();
+        List<WorkflowEntryDTO> history = assignmentWorkflowRepository
+                .findAllByIncident_IncidentIdOrderByUpdatedDateAsc(incidentId)
+                .stream()
+                .map(WorkflowEntryDTO::from)
+                .toList();
         return IncidentResponseDTO.builder()
-                .incidentId(incident.getIncidentId())
+                .incidentId(incidentId)
                 .incidentType(incident.getIncidentType())
                 .description(incident.getDescription())
                 .source(incident.getSource())
@@ -401,9 +491,10 @@ public class IncidentServiceImpl implements IncidentService {
                 .locationAddress(incident.getLocationAddress())
                 .userId(userId)
                 .reportCount(incident.getReportCount())
-                .reporterCount(incidentReporterRepository.countByIncident_IncidentId(incident.getIncidentId()))
+                .reporterCount(incidentReporterRepository.countByIncident_IncidentId(incidentId))
                 .duplicate(false)
-                .status(resolveStatus(incident.getIncidentId()))
+                .status(resolveStatus(incidentId))
+                .workflowHistory(history)
                 .build();
     }
 

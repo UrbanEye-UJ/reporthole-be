@@ -37,3 +37,13 @@ mail:
   password-reset-url: http://localhost:3000/reset-password?token=
   password-reset-subject: "Reset your Reporthole password"
   admin-application-subject: "Admin Access Request — Reporthole"
+  admin-application-approved-subject: "Your admin application was approved — Reporthole"
+  admin-application-rejected-subject: "Update on your admin application — Reporthole"
+  job-assigned-subject: "New Job Assigned — Reporthole"
+  job-assigned-url: http://localhost:3000/contractor/dashboard
+  contractor-invite-subject: "You've been invited to join Reporthole"
+  contractor-invite-url: http://localhost:3000/contractors/register?token=
+  municipality-token-subject: "Your Reporthole admin registration token"
+  municipality-token-registration-url: http://localhost:3000/register
+  contractor-verification-subject: "Activate your Reporthole contractor account"
+  admin-verification-subject: "Activate your Reporthole admin account"

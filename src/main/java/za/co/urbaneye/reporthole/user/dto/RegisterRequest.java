@@ -23,6 +23,9 @@ import za.co.urbaneye.reporthole.user.entity.UserRole;
  * @param role        requested or assigned user role
  * @param password    user's plaintext password (min 8 chars, 1 number, 1 special char)
  * @param phoneNumber user's contact phone number
+ * @param token optional invite token. A UUID value is resolved as a contractor invite (creates
+ *              {@code CONTRACTOR}). Any other value is resolved as a municipality admin token
+ *              (creates {@code ADMIN}). Omitted / blank means a normal CIVILIAN signup.
  *
  * @author Refentse
  * @since 1.0
@@ -49,6 +52,9 @@ public record RegisterRequest(
         String password,
 
         @NotBlank(message = "Phone number is required")
-        String phoneNumber
+        String phoneNumber,
+
+        /** Optional invite token. A UUID string is treated as a contractor invite; any other value is treated as a municipality admin token. */
+        String token
 ) {
 }

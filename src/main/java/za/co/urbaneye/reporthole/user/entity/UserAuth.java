@@ -65,6 +65,22 @@ public class UserAuth{
     @Column(name = "AUTH_RETRIES", nullable = false)
     private Integer retries = 0;
 
+    /**
+     * Watermark for session validity: any JWT whose {@code issuedAt} is before this instant is
+     * rejected by {@link za.co.urbaneye.reporthole.security.JwtAuthenticationFilter}, even though
+     * its signature and expiry are still valid.
+     *
+     * <p>Bumping this timestamp to "now" is how a {@code SECURITY_ADMIN} revokes every outstanding
+     * session for the account in one move — a forced logout, a role change, or a suspension all set
+     * it. Stored truncated to whole seconds because a JWT {@code iat} claim only has second
+     * precision; a token minted in the same second as the bump is allowed to survive.</p>
+     *
+     * <p>Null means "no watermark" — the filter applies no session cut-off (relevant only for rows
+     * created before this column existed).</p>
+     */
+    @Column(name = "AUTH_CREDENTIALS_VALID_FROM")
+    private LocalDateTime credentialsValidFrom;
+
     /** UUID token used to verify the user's email address. Null once verified. */
     @Column(name = "AUTH_VERIFICATION_TOKEN", unique = true)
     private String verificationToken;
@@ -88,11 +104,15 @@ public class UserAuth{
     private LocalDateTime createdAt;
 
     /**
-     * Sets the creation timestamp before persisting a new entity.
+     * Sets the creation timestamp before persisting a new entity, and seeds
+     * {@link #credentialsValidFrom} so tokens issued from first login onward are accepted.
      */
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.credentialsValidFrom == null) {
+            this.credentialsValidFrom = this.createdAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        }
     }
 
 }

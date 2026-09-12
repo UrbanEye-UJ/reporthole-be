@@ -1,0 +1,13 @@
+localhost:80 {
+	reverse_proxy /api/* reporthole-be:8080 host.docker.internal:8080 {
+		lb_policy first
+		health_uri /api/actuator/health
+		health_interval 5s
+	}
+
+	reverse_proxy * reporthole-fe:3000 host.docker.internal:3000 {
+		lb_policy first
+		health_uri /
+		health_interval 5s
+	}
+}

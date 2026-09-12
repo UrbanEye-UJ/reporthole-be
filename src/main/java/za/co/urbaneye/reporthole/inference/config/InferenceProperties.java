@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * inference:
  *   model-path: classpath:models/Reporthole-v1.onnx
  *   discard-threshold: 0.65
- *   auto-log-threshold: 0.80
+ *   auto-log-threshold: 0.75
  * </pre>
  *
  * @author Refentse
@@ -43,5 +43,5 @@ public class InferenceProperties {
      * Confidence at or above which an incident is created immediately without user confirmation.
      * Mirrors {@code AUTO_LOG_THRESHOLD} on the frontend dashcam page.
      */
-    private double autoLogThreshold = 0.80;
+    private double autoLogThreshold = 0.75;
 }

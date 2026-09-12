@@ -17,6 +17,10 @@ import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.entity.UserStatus;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
+import za.co.urbaneye.reporthole.admin.application.repository.IAdminApplicationRepository;
+import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityTokenRepository;
+import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
+import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 import za.co.urbaneye.reporthole.user.service.impl.LoginServiceImpl;
@@ -46,6 +50,18 @@ class IUserAuthServiceImplTest {
     @Mock
     private Jwt jwt;
 
+    @Mock
+    private IMailService mailService;
+
+    @Mock
+    private IMunicipalityTokenRepository municipalityTokenRepository;
+
+    @Mock
+    private IAdminApplicationRepository adminApplicationRepository;
+
+    @Mock
+    private IAccessControlAuditRepository auditRepository;
+
     @InjectMocks
     RegistrationServiceImpl registrationService;
 
@@ -57,7 +73,7 @@ class IUserAuthServiceImplTest {
     @BeforeEach
     void setup() {
         registerRequest = new RegisterRequest(
-                "John", "Doe", "john@mail.com", UserRole.CIVILIAN, "Test@Pass1", "0711111111"
+                "John", "Doe", "john@mail.com", UserRole.CIVILIAN, "Test@Pass1", "0711111111", null
         );
     }
 
@@ -115,6 +131,28 @@ class IUserAuthServiceImplTest {
         assertEquals("token", result.token());
         assertEquals(UserRole.CIVILIAN, result.role());
         verify(repository).save(userAuth);
+        verify(auditRepository).save(argThat(entry ->
+                entry.getAction() == za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction.USER_LOGIN
+                && entry.getActor().getUserId().equals(userId)
+        ));
+    }
+
+    @Test
+    void shouldNotWriteLoginAudit_whenPasswordWrong() {
+        UserAuth userAuth = UserAuth.builder()
+                .authId(UUID.randomUUID())
+                .password("hashed")
+                .status(UserStatus.ACTIVE)
+                .retries(0)
+                .build();
+
+        when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
+        when(encoder.matches(anyString(), anyString())).thenReturn(false);
+
+        assertThrows(UserServiceException.class,
+                () -> loginService.loginUser(new LoginRequest("a@b.com", "wrong")));
+
+        verify(auditRepository, never()).save(any());
     }
 
     @Test

@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.user.controller.AuthServiceController;
 import za.co.urbaneye.reporthole.user.dto.AuthResponse;
@@ -52,13 +53,17 @@ class AuthServiceControllerTest {
     @MockitoBean
     private DashcamDeviceRepository dashcamDeviceRepository;
 
+    /** Required by JwtAuthenticationFilter, which now does a per-request account-status lookup. */
+    @MockitoBean
+    private IUserAuthRepository userAuthRepository;
+
     @Autowired
     private ObjectMapper objectMapper;
 
     @Test
     void shouldRegisterUser() throws Exception {
         RegisterRequest request =
-                new RegisterRequest("John", "Doe", "john@mail.com", UserRole.CIVILIAN, "Test@Pass1", "0711111111");
+                new RegisterRequest("John", "Doe", "john@mail.com", UserRole.CIVILIAN, "Test@Pass1", "0711111111", null);
 
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)

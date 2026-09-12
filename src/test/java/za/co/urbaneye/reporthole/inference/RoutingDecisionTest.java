@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Unit tests for {@link RoutingDecision#from(double, InferenceProperties)}.
  *
  * <p>Verifies boundary behaviour at and around the default thresholds
- * (discard=0.65, auto-log=0.80) using the same logic as the frontend
- * dashcam page.</p>
+ * (discard=0.65, auto-log=0.75) using the same logic as the frontend
+ * dashcam and manual-report flows.</p>
  *
  * @author Refentse
  * @since 1.0
@@ -25,19 +25,19 @@ class RoutingDecisionTest {
 
     @BeforeEach
     void setUp() {
-        props = new InferenceProperties(); // defaults: discard=0.65, autoLog=0.80
+        props = new InferenceProperties(); // defaults: discard=0.65, autoLog=0.75
     }
 
     // ── exact boundary values ────────────────────────────────────────────────
 
     @Test
     void exactAutoLogThreshold_isAutoLog() {
-        assertThat(RoutingDecision.from(0.80, props)).isEqualTo(RoutingDecision.AUTO_LOG);
+        assertThat(RoutingDecision.from(0.75, props)).isEqualTo(RoutingDecision.AUTO_LOG);
     }
 
     @Test
     void justBelowAutoLogThreshold_isEscalate() {
-        assertThat(RoutingDecision.from(0.7999, props)).isEqualTo(RoutingDecision.ESCALATE);
+        assertThat(RoutingDecision.from(0.7499, props)).isEqualTo(RoutingDecision.ESCALATE);
     }
 
     @Test

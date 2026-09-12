@@ -53,7 +53,7 @@ class DeviceIntegrationTest {
         String email = "device_test_" + UUID.randomUUID() + "@mail.com";
         restTemplate.postForEntity(
                 base("/auth/register"),
-                new RegisterRequest("Device", "Tester", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000"),
+                new RegisterRequest("Device", "Tester", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000", null),
                 Void.class
         );
 
