@@ -61,6 +61,15 @@ public interface IncidentService {
     void deleteIncident(UUID incidentId);
 
     /**
+     * Admin-initiated reopen: reverts a RESOLVED incident back to VERIFIED and removes the
+     * current assignment so the admin can reassign it to a different (or the same) contractor.
+     * Only ADMIN role can call this.
+     *
+     * @throws AssignmentException if the incident is not currently RESOLVED
+     */
+    IncidentResponseDTO reopenIncident(UUID incidentId);
+
+    /**
      * Re-opens a RESOLVED incident: reverts it to VERIFIED so it can be reassigned, and
      * links the reporting user via {@code IncidentReporter} (idempotent).
      *

@@ -7,10 +7,12 @@ import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -18,6 +20,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.security.Aes;
 
@@ -67,6 +70,11 @@ public class ContractorInvite {
     @Column(name = "ISSUE_TYPE")
     @Builder.Default
     private Set<IssueType> specialisations = new HashSet<>();
+
+    /** Municipality of the admin who issued this invite — copied to the contractor's account at registration. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "INVITE_MUNICIPALITY_ID")
+    private Municipality municipality;
 
     @Column(name = "INVITE_EXPIRES_AT", nullable = false)
     private LocalDateTime expiresAt;

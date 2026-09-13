@@ -83,11 +83,10 @@ public class MessageController {
     }
 
     @GetMapping("/admin")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SECURITY_ADMIN')")
+    @PreAuthorize("hasRole('SECURITY_ADMIN')")
     @Operation(
             summary = "List civilian complaint messages",
-            description = "Returns all CIVILIAN_COMPLAINT messages, newest first. Accessible to ADMIN and " +
-                    "SECURITY_ADMIN roles."
+            description = "Returns all CIVILIAN_COMPLAINT messages, newest first. SECURITY_ADMIN only."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Messages returned"),

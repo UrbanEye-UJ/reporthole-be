@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 
@@ -76,6 +77,28 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
             @Param("userId") UUID userId,
             @Param("keyword") String keyword,
             @Param("issueType") IssueType issueType);
+
+    /**
+     * Incidents visible to the given admin municipality: unverified (municipality IS NULL) OR
+     * belonging to this municipality. Used to scope the admin dashboard to the admin's own area.
+     */
+    @Query("""
+            SELECT i FROM Incident i
+            WHERE i.deleted = false
+              AND (i.municipality IS NULL OR i.municipality = :municipality)
+            ORDER BY i.incidentDate DESC
+            """)
+    List<Incident> findForAdmin(@Param("municipality") Municipality municipality, Pageable pageable);
+
+    /**
+     * Count of incidents visible to the given admin municipality (unverified + own municipality).
+     */
+    @Query("""
+            SELECT COUNT(i) FROM Incident i
+            WHERE i.deleted = false
+              AND (i.municipality IS NULL OR i.municipality = :municipality)
+            """)
+    long countForAdmin(@Param("municipality") Municipality municipality);
 
     @Modifying
     @Query("UPDATE Incident i SET i.reportCount = i.reportCount + 1 WHERE i.incidentId = :id")
