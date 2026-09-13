@@ -68,7 +68,13 @@ public class Incident {
     @Column(name = "INCIDENT_DELETED", nullable = false)
     private boolean deleted = false;
 
-    @Column(name = "INCIDENT_AI_GENERATED", nullable = false)
+    /**
+     * Explicit SQL default ({@code columnDefinition}) so that {@code ddl-auto: update} can add this
+     * column to an already-populated table — without it, Hibernate emits a plain
+     * {@code not null} ALTER with no backfill value, which Postgres rejects on any table with
+     * existing rows.
+     */
+    @Column(name = "INCIDENT_AI_GENERATED", nullable = false, columnDefinition = "boolean not null default false")
     private boolean aiGenerated = false;
 
     @Column(name = "INCIDENT_AI_CONFIDENCE")
