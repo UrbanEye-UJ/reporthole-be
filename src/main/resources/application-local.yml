@@ -31,6 +31,9 @@ mail:
   admin-application-subject: "Admin Access Request — Reporthole"
 
 app:
+  bootstrap-admin:
+    enabled: true
+    # email and password use the defaults defined in BootstrapAdminInitializer
   test-data:
     enabled: true
     civilian-email: civilian@reporthole-test.local

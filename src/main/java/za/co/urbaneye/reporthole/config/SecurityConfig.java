@@ -87,6 +87,8 @@ public class SecurityConfig {
                     .requestMatchers("/inference/**").permitAll()
                     // Invite token acts as the credential — no JWT yet when the contractor registers
                     .requestMatchers(HttpMethod.POST, "/contractors/complete-registration").permitAll()
+                    // Public contact form — no account required to reach the platform support team
+                    .requestMatchers(HttpMethod.POST, "/messages/contact").permitAll()
                     .requestMatchers("/incidents/**").authenticated()
                     .anyRequest().authenticated()
             )

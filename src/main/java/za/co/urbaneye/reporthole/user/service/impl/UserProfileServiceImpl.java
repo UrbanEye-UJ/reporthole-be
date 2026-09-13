@@ -2,8 +2,11 @@ package za.co.urbaneye.reporthole.user.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import za.co.urbaneye.reporthole.user.dto.UpdateProfileRequest;
 import za.co.urbaneye.reporthole.user.dto.UserProfileResponse;
 import za.co.urbaneye.reporthole.user.entity.User;
@@ -29,6 +32,7 @@ public class UserProfileServiceImpl implements IUserProfileService {
 
     private final IUserRepository userRepository;
     private final IUserAuthRepository userAuthRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserProfileResponse getProfile() {
@@ -75,6 +79,16 @@ public class UserProfileServiceImpl implements IUserProfileService {
                 user.getRole(),
                 user.getCreatedAt()
         );
+    }
+
+    @Override
+    public void verifyPassword(String password) {
+        UUID userId = currentUserId();
+        UserAuth auth = userAuthRepository.findById(userId)
+                .orElseThrow(() -> new UserServiceException("User not found"));
+        if (!passwordEncoder.matches(password, auth.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Incorrect password");
+        }
     }
 
     private UUID currentUserId() {

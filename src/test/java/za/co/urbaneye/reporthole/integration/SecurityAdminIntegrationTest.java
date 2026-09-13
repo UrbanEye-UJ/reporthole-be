@@ -218,16 +218,20 @@ class SecurityAdminIntegrationTest {
                 String.class);
         assertEquals(HttpStatus.OK, grant.getStatusCode(), grant.getBody());
 
-        // the promotion is on the audit trail, actor = the first security admin
+        // the promotion is on the audit trail, actor = the first security admin. The second
+        // account's own registration also wrote a row against this target, so there are two:
+        // newest-first, ROLE_GRANTED then USER_REGISTERED.
         ResponseEntity<Map> audit = restTemplate.exchange(
                 base("/admin/security/audit?userId=" + secondAdminId), HttpMethod.GET,
                 new HttpEntity<>(bearer(firstAdminToken)), Map.class);
         List<?> rows = (List<?>) audit.getBody().get("data");
         assertNotNull(rows);
-        assertEquals(1, rows.size());
+        assertEquals(2, rows.size());
         Map<?, ?> row = (Map<?, ?>) rows.getFirst();
         assertEquals("ROLE_GRANTED", row.get("action"));
         assertEquals("SECURITY_ADMIN", row.get("toValue"));
+        Map<?, ?> registrationRow = (Map<?, ?>) rows.get(1);
+        assertEquals("USER_REGISTERED", registrationRow.get("action"));
 
         // the promotion bumped credentialsValidFrom, so the second account re-logs in to pick it up
         String secondAdminToken = login(secondAdminEmail);

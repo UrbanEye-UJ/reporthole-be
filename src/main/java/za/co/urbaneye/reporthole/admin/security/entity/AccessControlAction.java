@@ -3,9 +3,11 @@ package za.co.urbaneye.reporthole.admin.security.entity;
 /**
  * The kind of identity/accountability action recorded in an {@link AccessControlAuditEntry}.
  *
- * <p>Every value here is something only a {@code SECURITY_ADMIN} can do, and every occurrence
- * writes exactly one audit row. The set is deliberately small and closed — new privileged
- * operations should be added here so they cannot bypass the trail.</p>
+ * <p>Most values are privileged actions only a {@code SECURITY_ADMIN} can perform; a few
+ * ({@link #USER_LOGIN}, {@link #USER_REGISTERED}) are self-actions where a user is both actor
+ * and target. Every occurrence writes exactly one audit row. The set is deliberately small and
+ * closed — new identity/accountability events should be added here so they cannot bypass the
+ * trail.</p>
  *
  * @author Refentse
  * @since 1.0
@@ -31,5 +33,11 @@ public enum AccessControlAction {
     SESSIONS_REVOKED,
 
     /** A user successfully authenticated and received a JWT. */
-    USER_LOGIN
+    USER_LOGIN,
+
+    /**
+     * A new account was created — self-signup, contractor invite completion, or admin
+     * onboarding via a municipality token. Recorded for every role.
+     */
+    USER_REGISTERED
 }

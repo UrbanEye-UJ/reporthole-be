@@ -27,4 +27,13 @@ public interface IncidentReporterRepository extends JpaRepository<IncidentReport
      */
     @Query("SELECT ir.user.userId FROM IncidentReporter ir WHERE ir.incident.incidentId = :incidentId")
     List<UUID> findUserIdsByIncidentId(@Param("incidentId") UUID incidentId);
+
+    /**
+     * Counts how many distinct incidents a user is linked to as a reporter or confirmer.
+     * Used to populate the incident count on the civilian directory.
+     *
+     * @param userId the user whose incident count is needed
+     * @return number of incident_reporter rows for this user
+     */
+    long countByUser_UserId(UUID userId);
 }

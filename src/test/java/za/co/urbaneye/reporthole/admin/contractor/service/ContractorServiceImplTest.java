@@ -18,6 +18,8 @@ import za.co.urbaneye.reporthole.admin.contractor.entity.ContractorInvite;
 import za.co.urbaneye.reporthole.admin.contractor.exception.ContractorException;
 import za.co.urbaneye.reporthole.admin.contractor.repository.ContractorInviteRepository;
 import za.co.urbaneye.reporthole.admin.contractor.service.impl.ContractorServiceImpl;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
+import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.incident.repository.AssignmentRepository;
@@ -37,6 +39,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -52,6 +55,7 @@ class ContractorServiceImplTest {
     @Mock private AssignmentRepository assignmentRepository;
     @Mock private PasswordEncoder encoder;
     @Mock private IMailService mailService;
+    @Mock private IAccessControlAuditRepository auditRepository;
 
     @InjectMocks
     private ContractorServiceImpl service;
@@ -165,6 +169,10 @@ class ContractorServiceImplTest {
 
         assertThat(response.email()).isEqualTo(CONTRACTOR_EMAIL);
         assertThat(invite.isUsed()).isTrue();
+        verify(auditRepository).save(argThat(entry ->
+                entry.getAction() == AccessControlAction.USER_REGISTERED
+                && entry.getToValue().equals(UserRole.CONTRACTOR.name())
+        ));
     }
 
     @Test

@@ -12,6 +12,9 @@ import za.co.urbaneye.reporthole.admin.contractor.entity.ContractorInvite;
 import za.co.urbaneye.reporthole.admin.contractor.repository.ContractorInviteRepository;
 import za.co.urbaneye.reporthole.admin.municipality.entity.MunicipalityToken;
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityTokenRepository;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
+import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
@@ -57,6 +60,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
     private final IMunicipalityTokenRepository municipalityTokenRepository;
     private final IAdminApplicationRepository adminApplicationRepository;
     private final ContractorInviteRepository contractorInviteRepository;
+    private final IAccessControlAuditRepository auditRepository;
 
     @Value("${app.features.email-verification-enabled:false}")
     private boolean emailVerificationEnabled;
@@ -135,6 +139,14 @@ public class RegistrationServiceImpl implements IRegistrationService {
             }
 
             final User savedUser = userRepository.save(userEntity);
+
+            // Audit trail: every new account, regardless of role or onboarding path, is recorded here.
+            auditRepository.save(AccessControlAuditEntry.builder()
+                    .action(AccessControlAction.USER_REGISTERED)
+                    .actor(savedUser)
+                    .target(savedUser)
+                    .toValue(savedUser.getRole().name())
+                    .build());
 
             if (contractorInvite != null) {
                 contractorInvite.setUsed(true);

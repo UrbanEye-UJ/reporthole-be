@@ -15,6 +15,9 @@ import za.co.urbaneye.reporthole.admin.contractor.entity.ContractorInvite;
 import za.co.urbaneye.reporthole.admin.contractor.exception.ContractorException;
 import za.co.urbaneye.reporthole.admin.contractor.repository.ContractorInviteRepository;
 import za.co.urbaneye.reporthole.admin.contractor.service.interfaces.IContractorService;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
+import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.repository.AssignmentRepository;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
@@ -42,6 +45,7 @@ public class ContractorServiceImpl implements IContractorService {
     private final AssignmentRepository assignmentRepository;
     private final PasswordEncoder encoder;
     private final IMailService mailService;
+    private final IAccessControlAuditRepository auditRepository;
 
     @Value("${mail.contractor-invite-url}")
     private String inviteBaseUrl;
@@ -110,6 +114,14 @@ public class ContractorServiceImpl implements IContractorService {
                 .specialisations(new HashSet<>(invite.getSpecialisations()))
                 .build();
         User savedUser = userRepository.save(user);
+
+        // Audit trail: contractor completing an invite is also a new-account event.
+        auditRepository.save(AccessControlAuditEntry.builder()
+                .action(AccessControlAction.USER_REGISTERED)
+                .actor(savedUser)
+                .target(savedUser)
+                .toValue(UserRole.CONTRACTOR.name())
+                .build());
 
         invite.setUsed(true);
         inviteRepository.save(invite);

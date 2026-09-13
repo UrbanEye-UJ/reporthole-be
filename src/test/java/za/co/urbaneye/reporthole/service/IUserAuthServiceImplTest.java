@@ -91,6 +91,10 @@ class IUserAuthServiceImplTest {
 
         verify(repository).save(any(UserAuth.class));
         verify(userRepository).save(any(User.class));
+        verify(auditRepository).save(argThat(entry ->
+                entry.getAction() == za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction.USER_REGISTERED
+                && entry.getToValue().equals(UserRole.CIVILIAN.name())
+        ));
     }
 
     @Test

@@ -10,12 +10,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
 import za.co.urbaneye.reporthole.user.dto.UpdateProfileRequest;
 import za.co.urbaneye.reporthole.user.dto.UserProfileResponse;
+import za.co.urbaneye.reporthole.user.dto.VerifyPasswordRequest;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserProfileService;
 
 /**
@@ -49,6 +51,21 @@ public class UserController {
     public ResponseEntity<AppResponse<UserProfileResponse>> updateProfile(
             @Valid @RequestBody UpdateProfileRequest request) {
         return ResponseEntity.ok(AppResponse.ok(userProfileService.updateProfile(request)));
+    }
+
+    @PostMapping("/verify-password")
+    @Operation(
+            summary = "Verify password",
+            description = "Confirms the current user's password without changing session state. "
+                    + "Used by the UI to gate access to sensitive profile fields.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password correct"),
+            @ApiResponse(responseCode = "400", description = "Validation error — password field missing"),
+            @ApiResponse(responseCode = "401", description = "Password incorrect or unauthenticated")
+    })
+    public ResponseEntity<AppResponse<Void>> verifyPassword(@Valid @RequestBody VerifyPasswordRequest request) {
+        userProfileService.verifyPassword(request.password());
+        return ResponseEntity.ok(AppResponse.ok(null));
     }
 
     @DeleteMapping("/profile")
