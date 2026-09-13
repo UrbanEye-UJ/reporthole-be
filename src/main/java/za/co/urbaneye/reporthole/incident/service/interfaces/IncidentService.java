@@ -3,6 +3,7 @@ package za.co.urbaneye.reporthole.incident.service.interfaces;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 
@@ -31,8 +32,11 @@ public interface IncidentService {
     /** Contractor accepts their pending assignment, advancing the incident to IN_PROGRESS. */
     IncidentResponseDTO acceptAssignment(UUID incidentId);
 
-    /** Contractor rejects their pending assignment; it's removed from them and the incident reverts to VERIFIED so an admin can reassign it. */
-    IncidentResponseDTO rejectAssignment(UUID incidentId);
+    /**
+     * Contractor rejects their pending assignment, giving a required reason; it's removed
+     * from them and the incident reverts to VERIFIED so an admin can reassign it.
+     */
+    IncidentResponseDTO rejectAssignment(UUID incidentId, RejectAssignmentRequest request);
 
     /** Marks the caller's assignment for this incident as RESOLVED, storing the repair photo and note. */
     IncidentResponseDTO resolveIncident(UUID incidentId, ResolveIncidentRequest request);
@@ -42,6 +46,13 @@ public interface IncidentService {
 
     IncidentResponseDTO confirmDuplicate(UUID incidentId);
     IncidentResponseDTO getIncidentById(UUID incidentId);
+
+    /**
+     * Returns AI-generated incidents still awaiting human review — i.e. their detection
+     * confidence was below the auto-approval threshold, so they were left as {@code REPORTED}
+     * instead of being auto-verified. Caller must be an ADMIN.
+     */
+    List<IncidentResponseDTO> getIncidentsPendingAiReview();
 
     /** Soft-deletes the incident. Only the original reporter may delete their own incident. */
     void deleteIncident(UUID incidentId);

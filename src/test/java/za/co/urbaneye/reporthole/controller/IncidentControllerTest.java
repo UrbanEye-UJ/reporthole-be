@@ -9,9 +9,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
+import za.co.urbaneye.reporthole.incident.clustering.IncidentClusteringService;
 import za.co.urbaneye.reporthole.incident.controller.IncidentController;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
+import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.entity.IncidentSource;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -46,6 +49,9 @@ class IncidentControllerTest {
     private IncidentSseService incidentSseService;
 
     @MockitoBean
+    private IncidentClusteringService incidentClusteringService;
+
+    @MockitoBean
     private Jwt jwt;
 
     /** Required by the updated JwtAuthenticationFilter which now also handles device tokens. */
@@ -53,7 +59,7 @@ class IncidentControllerTest {
     private DashcamDeviceRepository dashcamDeviceRepository;
 
     private IncidentRequestDTO buildRequest() {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null);
     }
 
     @Test
@@ -181,5 +187,68 @@ class IncidentControllerTest {
 
         mockMvc.perform(get("/incidents/" + id))
                 .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void rejectAssignment_returnsOk_whenReasonProvided() throws Exception {
+        UUID id = UUID.randomUUID();
+        IncidentResponseDTO response = IncidentResponseDTO.builder()
+                .incidentId(id)
+                .incidentType(IssueType.POTHOLE)
+                .build();
+
+        when(incidentService.rejectAssignment(eq(id), any())).thenReturn(response);
+
+        mockMvc.perform(post("/incidents/" + id + "/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RejectAssignmentRequest("Not qualified for this repair type"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.incidentId").value(id.toString()));
+    }
+
+    @Test
+    void rejectAssignment_returnsBadRequest_whenReasonIsBlank() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(post("/incidents/" + id + "/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RejectAssignmentRequest(""))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getIncidentsPendingAiReview_returnsOk() throws Exception {
+        IncidentResponseDTO response = IncidentResponseDTO.builder()
+                .incidentId(UUID.randomUUID())
+                .incidentType(IssueType.POTHOLE)
+                .aiGenerated(true)
+                .aiConfidence(0.7)
+                .build();
+
+        when(incidentService.getIncidentsPendingAiReview()).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/incidents/pending-review"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].aiGenerated").value(true))
+                .andExpect(jsonPath("$.data[0].aiConfidence").value(0.7));
+    }
+
+    @Test
+    void getIncidentClusters_returnsOk() throws Exception {
+        za.co.urbaneye.reporthole.incident.clustering.IncidentClusterDTO cluster =
+                za.co.urbaneye.reporthole.incident.clustering.IncidentClusterDTO.builder()
+                        .clusterIndex(0)
+                        .centroidLatitude(-26.2041)
+                        .centroidLongitude(28.0473)
+                        .size(2)
+                        .incidentIds(List.of(UUID.randomUUID(), UUID.randomUUID()))
+                        .build();
+
+        when(incidentClusteringService.clusterIncidents(5, null)).thenReturn(List.of(cluster));
+
+        mockMvc.perform(get("/incidents/clusters"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].size").value(2))
+                .andExpect(jsonPath("$.data[0].clusterIndex").value(0));
     }
 }

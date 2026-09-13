@@ -14,7 +14,8 @@ import za.co.urbaneye.reporthole.inference.config.InferenceProperties;
  *   <li>{@code AUTO_LOG}  — confidence ≥ autoLogThreshold (default 0.80);
  *       incident created immediately without user intervention</li>
  *   <li>{@code ESCALATE}  — confidence ≥ discardThreshold (default 0.65) and below autoLogThreshold;
- *       event held in the log; user must confirm before incident is created</li>
+ *       an incident is created but left for human (admin) review rather than auto-verified —
+ *       see {@code AiReviewDecision} in the incident module</li>
  *   <li>{@code DISCARD}   — confidence below discardThreshold; event logged silently,
  *       no incident created</li>
  * </ul>
