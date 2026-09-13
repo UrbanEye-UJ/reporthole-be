@@ -41,7 +41,7 @@ class IncidentIntegrationTest {
         String email = "incident_test_" + UUID.randomUUID() + "@mail.com";
         restTemplate.postForEntity(
                 base("/auth/register"),
-                new RegisterRequest("Test", "User", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000"),
+                new RegisterRequest("Test", "User", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000", null),
                 Void.class
         );
 
@@ -180,6 +180,36 @@ class IncidentIntegrationTest {
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         java.util.List<?> data = (java.util.List<?>) resp.getBody().get("data");
         assertFalse(data.isEmpty(), "Expected at least one POTHOLE result");
+    }
+
+    @Test
+    void reportStillUnresolved_returns400_whenIncidentIsNotResolved() {
+        String incidentId = createIncidentAndGetId(); // freshly created — status is REPORTED
+
+        ResponseEntity<Map> resp = restTemplate.exchange(
+                base("/incidents/" + incidentId + "/still-unresolved"),
+                HttpMethod.POST,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
+    }
+
+    @Test
+    void reportStillUnresolved_returnsUnauthorizedOrForbidden_whenUnauthenticated() {
+        String incidentId = createIncidentAndGetId();
+
+        ResponseEntity<String> resp = restTemplate.postForEntity(
+                base("/incidents/" + incidentId + "/still-unresolved"),
+                null,
+                String.class
+        );
+
+        assertTrue(
+                resp.getStatusCode() == HttpStatus.UNAUTHORIZED || resp.getStatusCode() == HttpStatus.FORBIDDEN,
+                "Expected 401 or 403 but got: " + resp.getStatusCode()
+        );
     }
 
     @Test

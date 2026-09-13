@@ -29,7 +29,7 @@ class AuthIntegrationTest {
         String url = "http://localhost:" + port + "/api/auth/register";
 
         RegisterRequest register =
-                new RegisterRequest("John","Doe","john@mail.com", UserRole.CIVILIAN,"Test@Pass1","0711111111");
+                new RegisterRequest("John","Doe","john@mail.com", UserRole.CIVILIAN,"Test@Pass1","0711111111", null);
 
         ResponseEntity<Void> registerResponse =
                 restTemplate.postForEntity(url, register, Void.class);

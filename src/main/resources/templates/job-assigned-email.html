@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Job Assigned — Reporthole</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F3F4F6; font-family:Arial, Helvetica, sans-serif;">
+
+<div style="display:none; max-height:0; overflow:hidden; font-size:1px; line-height:1px; color:#F3F4F6;">
+    A new incident has been assigned to you. Open your dashboard to accept or reject it.
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F4F6; padding:32px 0;">
+    <tr>
+        <td align="center">
+
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:16px; overflow:hidden; max-width:600px; width:100%;">
+
+                <!-- Header -->
+                <tr>
+                    <td style="background-color:#2563EB; padding:28px 32px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="font-size:22px; font-weight:bold; color:#ffffff; letter-spacing:0.5px;">
+                                    Reporthole
+                                </td>
+                                <td align="right" style="font-size:12px; color:#BFDBFE; font-weight:bold; letter-spacing:1px; text-transform:uppercase;">
+                                    Gauteng
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Accent bar -->
+                <tr>
+                    <td style="background-color:#1D4ED8; height:3px; line-height:3px; font-size:0;">&nbsp;</td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                    <td style="padding:36px 32px 24px 32px;">
+                        <h1 style="margin:0 0 16px 0; font-size:20px; color:#111827;">New Job Assigned</h1>
+                        <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:#374151;">
+                            Hi <strong>{{userName}}</strong>, a new incident has been assigned to you. Open your
+                            dashboard to accept or reject it.
+                        </p>
+
+                        <!-- Details table -->
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F9FAFB; border-radius:12px; border:1px solid #E5E7EB; overflow:hidden; margin-bottom:24px;">
+                            <tr>
+                                <td style="padding:16px 20px; border-bottom:1px solid #E5E7EB;">
+                                    <span style="font-size:12px; font-weight:bold; color:#6B7280; text-transform:uppercase; letter-spacing:0.5px;">Issue Type</span><br>
+                                    <span style="font-size:15px; color:#111827;">{{incidentType}}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:16px 20px; border-bottom:1px solid #E5E7EB;">
+                                    <span style="font-size:12px; font-weight:bold; color:#6B7280; text-transform:uppercase; letter-spacing:0.5px;">Location</span><br>
+                                    <span style="font-size:15px; color:#111827;">{{locationAddress}}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:16px 20px;">
+                                    <span style="font-size:12px; font-weight:bold; color:#6B7280; text-transform:uppercase; letter-spacing:0.5px;">Incident ID</span><br>
+                                    <span style="font-size:13px; color:#374151; font-family:monospace; word-break:break-all;">{{incidentId}}</span>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table role="presentation" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="border-radius:8px; background-color:#2563EB;">
+                                    <a href="{{dashboardUrl}}" target="_blank" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">
+                                        Open Contractor Dashboard
+                                    </a>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding:0 32px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="border-top:1px solid #E5E7EB; font-size:0; line-height:0;">&nbsp;</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:20px 32px 32px 32px;">
+                        <p style="margin:0; font-size:12px; line-height:1.6; color:#9CA3AF;">
+                            This is an automated notification from Reporthole.
+                        </p>
+                        <p style="margin:12px 0 0 0; font-size:12px; line-height:1.6; color:#9CA3AF;">
+                            &copy; {{currentYear}} Reporthole &mdash; UrbanEye-UJ.
+                        </p>
+                    </td>
+                </tr>
+
+            </table>
+
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

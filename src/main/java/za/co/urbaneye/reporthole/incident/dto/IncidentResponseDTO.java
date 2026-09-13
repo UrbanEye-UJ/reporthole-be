@@ -6,6 +6,7 @@ import za.co.urbaneye.reporthole.incident.entity.IncidentSource;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Builder
@@ -26,6 +27,7 @@ public record IncidentResponseDTO(
         boolean alreadyConfirmed,
         UUID existingIncidentId,
         AssignmentStatus status,
+        List<WorkflowEntryDTO> workflowHistory,
         boolean aiGenerated,
         Double aiConfidence
 ) {}

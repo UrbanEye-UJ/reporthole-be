@@ -4,6 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
+import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
+import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.dto.AuthResponse;
@@ -49,6 +52,9 @@ public class LoginServiceImpl implements ILoginService {
     private final IUserAuthRepository authRepository;
 
     private final IUserRepository userRepository;
+
+    private final IAccessControlAuditRepository auditRepository;
+
     /**
      * Mapper for converting DTOs to entities.
      */
@@ -105,6 +111,10 @@ public class LoginServiceImpl implements ILoginService {
         } else if (userAuth.getStatus().equals(UserStatus.LOCKED)) {
             log.info("User with email {} locked", emailHash);
             throw new UserServiceException("User account locked");
+        } else if (userAuth.getStatus().equals(UserStatus.SUSPENDED)) {
+            // Administratively suspended by a SECURITY_ADMIN — cannot authenticate until reactivated.
+            log.info("User with email {} suspended", emailHash);
+            throw new UserServiceException("User account suspended");
         }
         else if (!encoder.matches(user.password(), userAuth.getPassword())) {
             userAuth.setRetries(userAuth.getRetries() + 1);
@@ -125,6 +135,12 @@ public class LoginServiceImpl implements ILoginService {
 
         final User found = userRepository.findById(userAuth.getAuthId()).get();
         final String token = jwt.generateToken(found.getUserId(), found.getRole());
+
+        auditRepository.save(AccessControlAuditEntry.builder()
+                .action(AccessControlAction.USER_LOGIN)
+                .actor(found)
+                .target(found)
+                .build());
 
         return new AuthResponse(token, found.getRole(), found.getUserId());
     }

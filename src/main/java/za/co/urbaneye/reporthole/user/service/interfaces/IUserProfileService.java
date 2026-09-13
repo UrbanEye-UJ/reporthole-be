@@ -16,4 +16,10 @@ public interface IUserProfileService {
 
     /** Soft-deletes the authenticated user's account by setting status to DELETED. */
     void deleteAccount();
+
+    /**
+     * Verifies that {@code password} matches the authenticated user's stored hash.
+     * Throws {@link org.springframework.web.server.ResponseStatusException} 401 if it does not.
+     */
+    void verifyPassword(String password);
 }

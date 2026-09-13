@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import za.co.urbaneye.reporthole.device.controller.DeviceController;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
+import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.device.service.interfaces.IDeviceService;
 import za.co.urbaneye.reporthole.security.Jwt;
 
@@ -53,6 +54,10 @@ class DeviceControllerTest {
     /** Required by the modified JwtAuthenticationFilter. */
     @MockitoBean
     private DashcamDeviceRepository dashcamDeviceRepository;
+
+    /** Required by JwtAuthenticationFilter, which now does a per-request account-status lookup. */
+    @MockitoBean
+    private IUserAuthRepository userAuthRepository;
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String FAKE_TOKEN = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";

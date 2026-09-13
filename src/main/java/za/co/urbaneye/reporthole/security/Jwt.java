@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 
 import javax.crypto.SecretKey;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -107,6 +108,21 @@ public class Jwt {
      */
     public String extractUserId(String token) {
         return extractClaims(token).getSubject();
+    }
+
+    /**
+     * Extracts the {@code iat} (issued-at) timestamp from the token.
+     *
+     * <p>Used by {@link JwtAuthenticationFilter} to compare against the account's
+     * {@code credentialsValidFrom} watermark for server-side session revocation.
+     * The value has whole-second precision, as defined by the JWT spec.</p>
+     *
+     * @param token JWT token string
+     * @return the issued-at instant, or {@code null} if the claim is absent
+     */
+    public Instant extractIssuedAt(String token) {
+        Date issuedAt = extractClaims(token).getIssuedAt();
+        return issuedAt == null ? null : issuedAt.toInstant();
     }
 
     /**

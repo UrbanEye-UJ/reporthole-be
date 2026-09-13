@@ -17,17 +17,24 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.user.entity.User;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Represents a CIVILIAN user's request to be promoted to the ADMIN role.
+ * The record of how a user obtained (or requested) the ADMIN role.
  *
- * <p>Applications are created via {@code POST /admin/applications} and fulfilled
- * manually: a developer verifies the municipality token and runs
- * {@code scripts/promote-to-admin.sql} to promote the user.</p>
+ * <p>Two ways a row is created:</p>
+ * <ul>
+ *   <li>a prospective admin registers with a valid {@link Municipality} token — a row is written
+ *       immediately as {@code APPROVED}, with {@link #municipality} set;</li>
+ *   <li>the legacy path: a CIVILIAN submits {@code POST /admin/applications} and a
+ *       {@code SECURITY_ADMIN} approves or rejects it.</li>
+ * </ul>
+ *
+ * <p>{@code GET /admin/applications} lists every row regardless of status.</p>
  *
  * @author Refentse
  * @since 1.0
@@ -52,6 +59,14 @@ public class AdminApplication {
 
     @Column(name = "MUNICIPALITY_TOKEN", nullable = false)
     private String municipalityToken;
+
+    /**
+     * The municipality this admin belongs to. Set when the row came from token registration;
+     * null for legacy free-text applications.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "MUNICIPALITY_ID")
+    private Municipality municipality;
 
     @Column(name = "SUBMITTED_AT", nullable = false, updatable = false)
     private LocalDateTime submittedAt;
