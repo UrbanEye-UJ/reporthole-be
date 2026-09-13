@@ -69,6 +69,9 @@ class IncidentServiceImplTest {
     private za.co.urbaneye.reporthole.notification.service.interfaces.IMailService mailService;
 
     @Mock
+    private za.co.urbaneye.reporthole.notification.service.interfaces.INotificationService notificationService;
+
+    @Mock
     private IncidentProperties incidentProperties;
 
     @InjectMocks

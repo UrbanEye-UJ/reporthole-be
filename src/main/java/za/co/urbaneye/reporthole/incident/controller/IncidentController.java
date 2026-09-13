@@ -35,6 +35,9 @@ import za.co.urbaneye.reporthole.incident.dto.ProgressUpdateRequest;
 import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
+import za.co.urbaneye.reporthole.incident.dto.CreateCommentRequest;
+import za.co.urbaneye.reporthole.incident.dto.IncidentCommentResponse;
+import za.co.urbaneye.reporthole.incident.service.interfaces.IIncidentCommentService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 
 @RestController
@@ -47,6 +50,7 @@ public class IncidentController {
     private final IncidentService incidentService;
     private final IncidentSseService incidentSseService;
     private final IncidentClusteringService incidentClusteringService;
+    private final IIncidentCommentService commentService;
 
     @PostMapping("/create")
     @Operation(
@@ -291,6 +295,22 @@ public class IncidentController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/reopen")
+    @Operation(
+            summary = "Reopen a resolved incident",
+            description = "Admin-only: reverts a RESOLVED incident back to VERIFIED and removes the existing " +
+                    "assignment so it can be reassigned to a contractor. Civilians are notified of the status change."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident reopened and set back to VERIFIED"),
+            @ApiResponse(responseCode = "400", description = "Incident is not currently RESOLVED"),
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> reopenIncident(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.reopenIncident(id)));
+    }
+
     @PostMapping("/{id}/still-unresolved")
     @Operation(
             summary = "Report incident still unresolved",
@@ -304,6 +324,31 @@ public class IncidentController {
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> reportStillUnresolved(@PathVariable UUID id) {
         return ResponseEntity.ok(AppResponse.ok(incidentService.reportStillUnresolved(id)));
+    }
+
+    @GetMapping("/{id}/comments")
+    @Operation(summary = "Get comments", description = "Returns all comments for the given incident, oldest first. Open to any authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Comments returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated")
+    })
+    public ResponseEntity<AppResponse<List<IncidentCommentResponse>>> getComments(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(commentService.getComments(id)));
+    }
+
+    @PostMapping("/{id}/comments")
+    @Operation(summary = "Post comment", description = "Posts a comment on behalf of the authenticated user. Any role may comment.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Comment created"),
+            @ApiResponse(responseCode = "400", description = "Validation error — empty or too-long content"),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentCommentResponse>> addComment(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateCommentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AppResponse.ok(commentService.addComment(id, request.content())));
     }
 
     @GetMapping("/nearby")

@@ -21,4 +21,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
 
     /** This contractor's assignment for a specific incident, if any — also doubles as an ownership check. */
     Optional<Assignment> findByIncident_IncidentIdAndContractor_UserId(UUID incidentId, UUID contractorId);
+
+    /** Removes all assignments for the given incident — used when an admin reopens a resolved task. */
+    void deleteByIncident_IncidentId(UUID incidentId);
 }

@@ -7,5 +7,7 @@ public enum IssueType {
     DAMAGED_SIGN,
     BLOCKED_DRAIN,
     BROKEN_TRAFFIC_LIGHT,
-    ACCIDENT
+    ACCIDENT,
+    /** Catch-all — a contractor with this specialisation can be assigned to any incident type. */
+    OTHER
 }

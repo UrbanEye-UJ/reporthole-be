@@ -60,6 +60,7 @@ public interface IUserMapper {
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "specialisations", ignore = true)
+    @Mapping(target = "municipality", ignore = true)
     User toUserEntity(RegisterRequest user);
 
     /**
@@ -78,5 +79,6 @@ public interface IUserMapper {
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "specialisations", ignore = true)
+    @Mapping(target = "municipality", ignore = true)
     User toAuthEntity(LoginRequest user);
 }

@@ -53,7 +53,7 @@ public class ContractorServiceImpl implements IContractorService {
     @Override
     @Transactional
     public void inviteContractor(InviteContractorRequest request) {
-        requireAdmin();
+        User admin = requireAdmin();
 
         final String emailHash = SecretUtil.hashEmail(request.email());
 
@@ -70,6 +70,7 @@ public class ContractorServiceImpl implements IContractorService {
                 .emailHash(emailHash)
                 .token(token)
                 .specialisations(new HashSet<>(request.specialisations()))
+                .municipality(admin.getMunicipality())
                 .expiresAt(LocalDateTime.now().plusHours(48))
                 .build();
         inviteRepository.save(invite);
@@ -112,6 +113,7 @@ public class ContractorServiceImpl implements IContractorService {
                 .phoneNumber(request.phoneNumber())
                 .role(UserRole.CONTRACTOR)
                 .specialisations(new HashSet<>(invite.getSpecialisations()))
+                .municipality(invite.getMunicipality())
                 .build();
         User savedUser = userRepository.save(user);
 
@@ -132,9 +134,15 @@ public class ContractorServiceImpl implements IContractorService {
 
     @Override
     public List<ContractorResponse> getContractors() {
-        requireAdmin();
+        User admin = requireAdmin();
 
-        return userRepository.findByRole(UserRole.CONTRACTOR).stream()
+        // If the admin belongs to a municipality, return only contractors in that municipality.
+        // If the admin has no municipality (e.g. bootstrapped admin), return all contractors.
+        List<User> contractors = admin.getMunicipality() != null
+                ? userRepository.findByRoleAndMunicipality(UserRole.CONTRACTOR, admin.getMunicipality())
+                : userRepository.findByRole(UserRole.CONTRACTOR);
+
+        return contractors.stream()
                 .map(user -> {
                     UserAuth auth = userAuthRepository.findById(user.getUserId())
                             .orElseThrow(() -> new ContractorException("Contractor auth record not found"));

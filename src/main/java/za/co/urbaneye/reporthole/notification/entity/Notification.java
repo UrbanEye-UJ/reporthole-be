@@ -37,6 +37,11 @@ public class Notification {
     @Column(name = "NOTIFICATION_MESSAGE", nullable = false, length = 255)
     private String message;
 
+    /** False until the recipient opens their notification drawer. */
+    @Column(name = "NOTIFICATION_READ", nullable = false)
+    @Builder.Default
+    private boolean read = false;
+
     @Column(name = "NOTIFICATION_CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

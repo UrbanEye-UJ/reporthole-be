@@ -18,6 +18,8 @@ import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.entity.IncidentSource;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
+import za.co.urbaneye.reporthole.incident.dto.IncidentCommentResponse;
+import za.co.urbaneye.reporthole.incident.service.interfaces.IIncidentCommentService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 import za.co.urbaneye.reporthole.security.Jwt;
 
@@ -54,6 +56,9 @@ class IncidentControllerTest {
 
     @MockitoBean
     private Jwt jwt;
+
+    @MockitoBean
+    private IIncidentCommentService commentService;
 
     /** Required by the updated JwtAuthenticationFilter which now also handles device tokens. */
     @MockitoBean
@@ -325,5 +330,45 @@ class IncidentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].size").value(2))
                 .andExpect(jsonPath("$.data[0].clusterIndex").value(0));
+    }
+
+    @Test
+    void getComments_returnsOk() throws Exception {
+        UUID incidentId = UUID.randomUUID();
+        IncidentCommentResponse comment = new IncidentCommentResponse(
+                UUID.randomUUID(), "Pothole is still there", java.time.LocalDateTime.now(), "Jane Doe", "CIVILIAN");
+
+        when(commentService.getComments(incidentId)).thenReturn(List.of(comment));
+
+        mockMvc.perform(get("/incidents/{id}/comments", incidentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].content").value("Pothole is still there"))
+                .andExpect(jsonPath("$.data[0].authorName").value("Jane Doe"));
+    }
+
+    @Test
+    void addComment_returnsCreated() throws Exception {
+        UUID incidentId = UUID.randomUUID();
+        IncidentCommentResponse comment = new IncidentCommentResponse(
+                UUID.randomUUID(), "Will be fixed soon", java.time.LocalDateTime.now(), "John Admin", "ADMIN");
+
+        when(commentService.addComment(eq(incidentId), any())).thenReturn(comment);
+
+        mockMvc.perform(post("/incidents/{id}/comments", incidentId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"Will be fixed soon\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.authorName").value("John Admin"))
+                .andExpect(jsonPath("$.data.authorRole").value("ADMIN"));
+    }
+
+    @Test
+    void addComment_emptyContent_returnsBadRequest() throws Exception {
+        UUID incidentId = UUID.randomUUID();
+
+        mockMvc.perform(post("/incidents/{id}/comments", incidentId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"\"}"))
+                .andExpect(status().isBadRequest());
     }
 }

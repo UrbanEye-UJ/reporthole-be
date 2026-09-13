@@ -9,6 +9,7 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
@@ -31,6 +32,7 @@ import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
+import za.co.urbaneye.reporthole.notification.service.interfaces.INotificationService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -58,6 +60,7 @@ public class IncidentServiceImpl implements IncidentService {
     private final ImageStorageService imageStorageService;
     private final IncidentSseService incidentSseService;
     private final IMailService mailService;
+    private final INotificationService notificationService;
     private final IncidentProperties incidentProperties;
 
     private static final double MANUAL_DUPLICATE_RADIUS_METRES = 1_000.0;
@@ -120,6 +123,11 @@ public class IncidentServiceImpl implements IncidentService {
         }
         final Incident saved = incidentRepository.save(incident);
         incidentReporterRepository.save(new IncidentReporter(saved, user));
+
+        // Notify all admins that a new incident needs attention.
+        String typeLabel = formatType(saved.getIncidentType());
+        userRepository.findByRole(UserRole.ADMIN).forEach(admin ->
+                notificationService.notify(admin, "New " + typeLabel + " report — awaiting verification"));
 
         AssignmentStatus status = AssignmentStatus.REPORTED;
         if (saved.isAiGenerated()) {
@@ -220,17 +228,22 @@ public class IncidentServiceImpl implements IncidentService {
 
     @Override
     public List<IncidentResponseDTO> getRecentIncidents(int limit) {
-        return incidentRepository.findByDeletedFalseOrderByIncidentDateDesc(PageRequest.of(0, limit)).stream()
+        Municipality municipality = resolveAdminMunicipality();
+        List<Incident> incidents = municipality != null
+                ? incidentRepository.findForAdmin(municipality, PageRequest.of(0, limit))
+                : incidentRepository.findByDeletedFalseOrderByIncidentDateDesc(PageRequest.of(0, limit));
+        return incidents.stream()
                 .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
                 .toList();
     }
 
     @Override
     public IncidentStatsDTO getIncidentStats() {
-        return new IncidentStatsDTO(
-                incidentRepository.countByDeletedFalse(),
-                assignmentWorkflowRepository.countResolvedIncidents()
-        );
+        Municipality municipality = resolveAdminMunicipality();
+        long total = municipality != null
+                ? incidentRepository.countForAdmin(municipality)
+                : incidentRepository.countByDeletedFalse();
+        return new IncidentStatsDTO(total, assignmentWorkflowRepository.countResolvedIncidents());
     }
 
     @Override
@@ -271,7 +284,7 @@ public class IncidentServiceImpl implements IncidentService {
     @Override
     @Transactional
     public IncidentResponseDTO assignIncident(UUID incidentId, UUID contractorId) {
-        requireAdmin();
+        User admin = requireAdmin();
 
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new AssignmentException("Incident not found: " + incidentId));
@@ -281,9 +294,22 @@ public class IncidentServiceImpl implements IncidentService {
         if (contractor.getRole() != UserRole.CONTRACTOR) {
             throw new AssignmentException("Selected user is not a contractor");
         }
-        if (!contractor.getSpecialisations().contains(incident.getIncidentType())) {
+        boolean canHandle = contractor.getSpecialisations().contains(IssueType.OTHER)
+                || contractor.getSpecialisations().contains(incident.getIncidentType());
+        if (!canHandle) {
             throw new AssignmentException(
                     "Contractor is not specialised in " + incident.getIncidentType());
+        }
+
+        // Enforce municipality boundary — skip if either party has no municipality (bootstrap/legacy).
+        Municipality adminMunicipality = admin.getMunicipality();
+        if (adminMunicipality != null && incident.getMunicipality() != null
+                && !adminMunicipality.equals(incident.getMunicipality())) {
+            throw new AssignmentException("Incident belongs to a different municipality");
+        }
+        if (adminMunicipality != null && contractor.getMunicipality() != null
+                && !adminMunicipality.equals(contractor.getMunicipality())) {
+            throw new AssignmentException("Contractor belongs to a different municipality");
         }
 
         assignmentRepository.save(
@@ -310,6 +336,12 @@ public class IncidentServiceImpl implements IncidentService {
                 incident.getIncidentId().toString()
         );
 
+        String label = formatType(incident.getIncidentType());
+        notificationService.notify(contractor, "You have been assigned a " + label + " job");
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "A contractor has been assigned to your " + label + " report")));
+
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
 
@@ -334,6 +366,12 @@ public class IncidentServiceImpl implements IncidentService {
             throw new AssignmentException("Only reported incidents can be verified");
         }
 
+        // Tag the incident to the verifying admin's municipality — it becomes their work item.
+        if (admin.getMunicipality() != null) {
+            incident.setMunicipality(admin.getMunicipality());
+            incidentRepository.save(incident);
+        }
+
         AssignmentWorkflow workflow = new AssignmentWorkflow();
         workflow.setIncident(incident);
         workflow.setUpdatedBy(admin);
@@ -343,6 +381,12 @@ public class IncidentServiceImpl implements IncidentService {
 
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        // Notify every reporter linked to this incident.
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Your " + label + " report has been verified")));
 
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
@@ -384,6 +428,11 @@ public class IncidentServiceImpl implements IncidentService {
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
 
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Work has started on your " + label + " report")));
+
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
 
@@ -412,6 +461,11 @@ public class IncidentServiceImpl implements IncidentService {
 
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        // Notify all admins that this incident needs reassignment.
+        String label = formatType(incident.getIncidentType());
+        userRepository.findByRole(UserRole.ADMIN).forEach(admin ->
+                notificationService.notify(admin, "Contractor rejected " + label + " — needs reassignment"));
 
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
@@ -469,6 +523,11 @@ public class IncidentServiceImpl implements IncidentService {
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
 
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Your " + label + " report has been resolved")));
+
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
 
@@ -492,6 +551,38 @@ public class IncidentServiceImpl implements IncidentService {
         }
         incident.setDeleted(true);
         incidentRepository.save(incident);
+    }
+
+    @Override
+    @Transactional
+    public IncidentResponseDTO reopenIncident(UUID incidentId) {
+        User admin = requireAdmin();
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new AssignmentException("Incident not found: " + incidentId));
+
+        if (resolveStatus(incidentId) != AssignmentStatus.RESOLVED) {
+            throw new AssignmentException("Only resolved incidents can be reopened");
+        }
+
+        // Remove the completed assignment so the admin can issue a fresh one.
+        assignmentRepository.deleteByIncident_IncidentId(incidentId);
+
+        AssignmentWorkflow workflow = new AssignmentWorkflow();
+        workflow.setIncident(incident);
+        workflow.setUpdatedBy(admin);
+        workflow.setStatus(AssignmentStatus.VERIFIED);
+        workflow.setNotes("Reopened by " + admin.getFirstName() + " " + admin.getLastName());
+        assignmentWorkflowRepository.save(workflow);
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Your " + label + " report has been reopened for reassignment")));
+
+        return toResponseDTO(incident, incident.getUser().getUserId());
     }
 
     @Override
@@ -559,11 +650,42 @@ public class IncidentServiceImpl implements IncidentService {
                 .build();
     }
 
+    /** Human-readable issue type label, e.g. "POTHOLE" → "Pothole". */
+    private static String formatType(IssueType type) {
+        if (type == null) return "incident";
+        String raw = type.name().replace('_', ' ').toLowerCase();
+        return Character.toUpperCase(raw.charAt(0)) + raw.substring(1);
+    }
+
     /** Current status is the most recent workflow entry; incidents with no entries yet are still just REPORTED. */
     private AssignmentStatus resolveStatus(UUID incidentId) {
         return assignmentWorkflowRepository.findFirstByIncident_IncidentIdOrderByUpdatedDateDesc(incidentId)
                 .map(AssignmentWorkflow::getStatus)
                 .orElse(AssignmentStatus.REPORTED);
+    }
+
+    /**
+     * Returns the calling ADMIN's municipality, or {@code null} if:
+     * <ul>
+     *   <li>there is no authenticated principal (e.g. unit tests without a security context),</li>
+     *   <li>the caller is not an ADMIN, or</li>
+     *   <li>the admin has not been assigned a municipality yet (bootstrap/legacy accounts).</li>
+     * </ul>
+     * Callers treat {@code null} as "no municipality filter — show everything".
+     */
+    private Municipality resolveAdminMunicipality() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof String principal)) return null;
+        UUID callerId;
+        try {
+            callerId = UUID.fromString(principal);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        return userRepository.findById(callerId)
+                .filter(u -> u.getRole() == UserRole.ADMIN)
+                .map(User::getMunicipality)
+                .orElse(null);
     }
 
     private UUID currentUserId() {

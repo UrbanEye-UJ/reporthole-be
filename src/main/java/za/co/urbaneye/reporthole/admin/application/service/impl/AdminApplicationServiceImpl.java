@@ -116,6 +116,9 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
         User applicant = application.getUser();
         UserRole previousRole = applicant.getRole();
         applicant.setRole(UserRole.ADMIN);
+        if (application.getMunicipality() != null) {
+            applicant.setMunicipality(application.getMunicipality());
+        }
         userRepository.save(applicant);
 
         application.setStatus(AdminApplicationStatus.APPROVED);
