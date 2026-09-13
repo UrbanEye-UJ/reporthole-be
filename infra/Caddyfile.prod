@@ -1,0 +1,4 @@
+{$CADDY_DOMAIN} {
+	reverse_proxy /api/* reporthole-be:8080
+	reverse_proxy * reporthole-fe:3000
+}

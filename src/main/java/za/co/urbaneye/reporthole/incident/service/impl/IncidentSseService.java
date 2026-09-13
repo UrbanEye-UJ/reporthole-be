@@ -118,6 +118,35 @@ public class IncidentSseService {
     }
 
     /**
+     * Pushes a {@code notification} SSE event to all active connections for {@code userId}.
+     *
+     * <p>Called by {@link za.co.urbaneye.reporthole.notification.service.impl.NotificationServiceImpl}
+     * immediately after a notification record is persisted. Recipients who are offline at the
+     * time miss the push but pick up the notification on next load via the REST endpoint.</p>
+     *
+     * @param userId  the recipient user
+     * @param message the notification message to deliver
+     */
+    public void pushNotification(UUID userId, String message) {
+        List<SseEmitter> emitters = userEmitters.getOrDefault(userId, new CopyOnWriteArrayList<>());
+        if (emitters.isEmpty()) {
+            log.debug("[SSE] Notification for user {} — no active connections, skipping push", userId);
+            return;
+        }
+        List<SseEmitter> dead = new ArrayList<>();
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event().name("notification").data(message));
+            } catch (Exception e) {
+                log.warn("[SSE] Failed notification push to user {} ({})", userId, e.getMessage());
+                dead.add(emitter);
+            }
+        }
+        emitters.removeAll(dead);
+        log.debug("[SSE] notification event delivered to user {}", userId);
+    }
+
+    /**
      * Returns the total number of active SSE connections across all users.
      * Intended for monitoring and testing purposes.
      *

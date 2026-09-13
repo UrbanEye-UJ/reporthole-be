@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.locationtech.jts.geom.Point;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 
@@ -67,9 +68,24 @@ public class Incident {
     @Column(name = "INCIDENT_DELETED", nullable = false)
     private boolean deleted = false;
 
+    @Column(name = "INCIDENT_AI_GENERATED", nullable = false)
+    private boolean aiGenerated = false;
+
+    @Column(name = "INCIDENT_AI_CONFIDENCE")
+    private Double aiConfidence;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_USER_ID", nullable = false)
     private User user;
+
+    /**
+     * Municipality responsible for this incident. Null until an admin verifies it — at that point
+     * the incident is tagged to the verifying admin's municipality and becomes their work item.
+     * Unverified (null) incidents are visible to all admins so any municipality can claim them.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "INCIDENT_MUNICIPALITY_ID")
+    private Municipality municipality;
 
     @PrePersist
     protected void onCreate() {

@@ -53,7 +53,7 @@ class DeviceIntegrationTest {
         String email = "device_test_" + UUID.randomUUID() + "@mail.com";
         restTemplate.postForEntity(
                 base("/auth/register"),
-                new RegisterRequest("Device", "Tester", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000"),
+                new RegisterRequest("Device", "Tester", email, UserRole.CIVILIAN, "Test@Pass1", "0700000000", null),
                 Void.class
         );
 
@@ -123,7 +123,7 @@ class DeviceIntegrationTest {
                 IssueType.POTHOLE, "Dashcam detected pothole", IncidentSource.DASHCAM,
                 -26.2041, 28.0473,
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
-                true, null
+                true, null, null
         );
 
         ResponseEntity<Map> resp = restTemplate.exchange(

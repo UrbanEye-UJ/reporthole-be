@@ -1,0 +1,56 @@
+name: k6 Regression
+
+# Manual trigger only — run from the Actions tab ("Run workflow") or:
+#   gh workflow run k6-regression.yml
+#
+# Required repository secrets:
+#   APP_BASE_URL          — hosted API base, e.g. https://api.reporthole.co.za/api  (no trailing slash)
+#
+# Optional secrets (flows are skipped when their secrets are absent):
+#   CIVILIAN_EMAIL        — email of a pre-existing verified CIVILIAN test account
+#   CIVILIAN_PASSWORD     — password of that account
+#   ADMIN_EMAIL           — email of a pre-existing ADMIN test account
+#   ADMIN_PASSWORD        — password of that account
+#   CONTRACTOR_EMAIL      — email of a pre-existing CONTRACTOR test account
+#   CONTRACTOR_PASSWORD   — password of that account
+on:
+  workflow_dispatch:
+
+jobs:
+  k6:
+    name: k6 regression — registration / civilian / admin / contractor
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
+            https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -qq && sudo apt-get install -y k6
+
+      - name: Run regression
+        env:
+          BASE_URL:            ${{ secrets.APP_BASE_URL }}
+          CIVILIAN_EMAIL:      ${{ secrets.CIVILIAN_EMAIL }}
+          CIVILIAN_PASSWORD:   ${{ secrets.CIVILIAN_PASSWORD }}
+          ADMIN_EMAIL:         ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD:      ${{ secrets.ADMIN_PASSWORD }}
+          CONTRACTOR_EMAIL:    ${{ secrets.CONTRACTOR_EMAIL }}
+          CONTRACTOR_PASSWORD: ${{ secrets.CONTRACTOR_PASSWORD }}
+        run: |
+          k6 run \
+            -e BASE_URL="$BASE_URL" \
+            -e CIVILIAN_EMAIL="$CIVILIAN_EMAIL" \
+            -e CIVILIAN_PASSWORD="$CIVILIAN_PASSWORD" \
+            -e ADMIN_EMAIL="$ADMIN_EMAIL" \
+            -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+            -e CONTRACTOR_EMAIL="$CONTRACTOR_EMAIL" \
+            -e CONTRACTOR_PASSWORD="$CONTRACTOR_PASSWORD" \
+            k6/regression.js

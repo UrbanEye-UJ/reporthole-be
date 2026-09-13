@@ -20,6 +20,14 @@ spring:
           starttls:
             enable: true
 
+app:
+  bootstrap-admin:
+    enabled: true
+    # email defaults to reporthole.team@gmail.com — set APP_BOOTSTRAP_ADMIN_PASSWORD in the environment
+    password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:1@qwerty}
+  bootstrap-municipalities:
+    enabled: true
+
 management:
   health:
     mail:

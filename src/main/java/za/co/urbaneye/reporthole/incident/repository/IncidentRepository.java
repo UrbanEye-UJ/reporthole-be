@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 
@@ -18,6 +19,12 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
 
     /** Most recently logged, non-deleted incidents across all users, newest first. */
     List<Incident> findByDeletedFalseOrderByIncidentDateDesc(Pageable pageable);
+
+    /** All non-deleted incidents, unordered — used as the input set for location clustering. */
+    List<Incident> findByDeletedFalse();
+
+    /** AI-generated, non-deleted incidents, newest first — candidates for the human-review queue. */
+    List<Incident> findByAiGeneratedTrueAndDeletedFalseOrderByIncidentDateDesc();
 
     long countByDeletedFalse();
 
@@ -71,8 +78,56 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
             @Param("keyword") String keyword,
             @Param("issueType") IssueType issueType);
 
+    /**
+     * Incidents visible to the given admin municipality: unverified (municipality IS NULL) OR
+     * belonging to this municipality. Used to scope the admin dashboard to the admin's own area.
+     */
+    @Query("""
+            SELECT i FROM Incident i
+            WHERE i.deleted = false
+              AND (i.municipality IS NULL OR i.municipality = :municipality)
+            ORDER BY i.incidentDate DESC
+            """)
+    List<Incident> findForAdmin(@Param("municipality") Municipality municipality, Pageable pageable);
+
+    /**
+     * Count of incidents visible to the given admin municipality (unverified + own municipality).
+     */
+    @Query("""
+            SELECT COUNT(i) FROM Incident i
+            WHERE i.deleted = false
+              AND (i.municipality IS NULL OR i.municipality = :municipality)
+            """)
+    long countForAdmin(@Param("municipality") Municipality municipality);
+
     @Modifying
     @Query("UPDATE Incident i SET i.reportCount = i.reportCount + 1 WHERE i.incidentId = :id")
     void incrementReportCount(@Param("id") UUID id);
+
+    /**
+     * Returns non-deleted incidents within radiusMeters of the given point, closest first,
+     * regardless of issue type — used to show a civilian what's already nearby before they
+     * submit a report, distinct from {@link #findNearestDuplicate} which filters by type.
+     */
+    @Query(value = """
+            SELECT *
+            FROM incident
+            WHERE ST_DWithin(
+                ST_SetSRID(INCIDENT_LOCATION, 4326)::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+                :radiusMeters
+            )
+            AND INCIDENT_DELETED = false
+            ORDER BY ST_Distance(
+                ST_SetSRID(INCIDENT_LOCATION, 4326)::geography,
+                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+            )
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Incident> findNearby(
+            @Param("latitude") double latitude,
+            @Param("longitude") double longitude,
+            @Param("radiusMeters") double radiusMeters
+    );
 }
 

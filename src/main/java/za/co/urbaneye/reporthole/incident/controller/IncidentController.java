@@ -25,12 +25,19 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 import java.util.UUID;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
+import za.co.urbaneye.reporthole.incident.clustering.IncidentClusterDTO;
+import za.co.urbaneye.reporthole.incident.clustering.IncidentClusteringService;
 import za.co.urbaneye.reporthole.incident.dto.AssignIncidentRequest;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.ProgressUpdateRequest;
+import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
+import za.co.urbaneye.reporthole.incident.dto.CreateCommentRequest;
+import za.co.urbaneye.reporthole.incident.dto.IncidentCommentResponse;
+import za.co.urbaneye.reporthole.incident.service.interfaces.IIncidentCommentService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 
 @RestController
@@ -42,6 +49,8 @@ public class IncidentController {
 
     private final IncidentService incidentService;
     private final IncidentSseService incidentSseService;
+    private final IncidentClusteringService incidentClusteringService;
+    private final IIncidentCommentService commentService;
 
     @PostMapping("/create")
     @Operation(
@@ -98,6 +107,36 @@ public class IncidentController {
     )
     public ResponseEntity<AppResponse<IncidentStatsDTO>> getIncidentStats() {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentStats()));
+    }
+
+    @GetMapping("/pending-review")
+    @Operation(
+            summary = "Get AI incidents pending review",
+            description = "Returns AI-generated incidents whose detection confidence fell below the auto-approval " +
+                    "threshold, so they were left as REPORTED instead of being auto-verified. Admin only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Pending-review incidents returned (may be empty)"),
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin")
+    })
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getIncidentsPendingAiReview() {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentsPendingAiReview()));
+    }
+
+    @GetMapping("/clusters")
+    @Operation(
+            summary = "Cluster incidents by location",
+            description = "Groups non-deleted incidents into up to k clusters of nearby locations using K-Means, " +
+                    "optionally restricted to a single issue type. Intended for admin dashboard hotspot maps."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Clusters returned (empty if there are no matching incidents)"),
+            @ApiResponse(responseCode = "500", description = "k is less than 1")
+    })
+    public ResponseEntity<AppResponse<List<IncidentClusterDTO>>> getIncidentClusters(
+            @RequestParam(defaultValue = "5") int k,
+            @RequestParam(required = false) IssueType type) {
+        return ResponseEntity.ok(AppResponse.ok(incidentClusteringService.clusterIncidents(k, type)));
     }
 
     @GetMapping("/my/search")
@@ -189,16 +228,34 @@ public class IncidentController {
     @PostMapping("/{id}/reject")
     @Operation(
             summary = "Reject assignment",
-            description = "Called by the assigned contractor to reject the incident. The assignment is removed from " +
-                    "the contractor and the incident reverts to VERIFIED so an admin can assign it to someone else."
+            description = "Called by the assigned contractor to reject the incident, giving a required reason. " +
+                    "The assignment is removed from the contractor and the incident reverts to VERIFIED so an " +
+                    "admin can assign it to someone else."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Assignment rejected"),
-            @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance"),
+            @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance, or reason is missing"),
             @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
     })
-    public ResponseEntity<AppResponse<IncidentResponseDTO>> rejectAssignment(@PathVariable UUID id) {
-        return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id)));
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> rejectAssignment(
+            @PathVariable UUID id, @Valid @RequestBody RejectAssignmentRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id, request)));
+    }
+
+    @PostMapping("/{id}/progress")
+    @Operation(
+            summary = "Add progress update",
+            description = "Called by the assigned contractor to post a free-text progress note while the incident is IN_PROGRESS. " +
+                    "Each note is appended to the incident's workflow history, visible to admins."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Progress update recorded"),
+            @ApiResponse(responseCode = "400", description = "Incident is not IN_PROGRESS or note is blank"),
+            @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> addProgressUpdate(
+            @PathVariable UUID id, @Valid @RequestBody ProgressUpdateRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.addProgressUpdate(id, request.note())));
     }
 
     @GetMapping("/my-assignments")
@@ -236,5 +293,74 @@ public class IncidentController {
     public ResponseEntity<Void> deleteIncident(@PathVariable UUID id) {
         incidentService.deleteIncident(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reopen")
+    @Operation(
+            summary = "Reopen a resolved incident",
+            description = "Admin-only: reverts a RESOLVED incident back to VERIFIED and removes the existing " +
+                    "assignment so it can be reassigned to a contractor. Civilians are notified of the status change."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident reopened and set back to VERIFIED"),
+            @ApiResponse(responseCode = "400", description = "Incident is not currently RESOLVED"),
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> reopenIncident(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.reopenIncident(id)));
+    }
+
+    @PostMapping("/{id}/still-unresolved")
+    @Operation(
+            summary = "Report incident still unresolved",
+            description = "Reopens a RESOLVED incident: reverts it to VERIFIED so an admin can reassign it, and " +
+                    "links the reporting user so they receive future updates."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Incident reopened"),
+            @ApiResponse(responseCode = "400", description = "Incident is not currently RESOLVED"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> reportStillUnresolved(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.reportStillUnresolved(id)));
+    }
+
+    @GetMapping("/{id}/comments")
+    @Operation(summary = "Get comments", description = "Returns all comments for the given incident, oldest first. Open to any authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Comments returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated")
+    })
+    public ResponseEntity<AppResponse<List<IncidentCommentResponse>>> getComments(@PathVariable UUID id) {
+        return ResponseEntity.ok(AppResponse.ok(commentService.getComments(id)));
+    }
+
+    @PostMapping("/{id}/comments")
+    @Operation(summary = "Post comment", description = "Posts a comment on behalf of the authenticated user. Any role may comment.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Comment created"),
+            @ApiResponse(responseCode = "400", description = "Validation error — empty or too-long content"),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated"),
+            @ApiResponse(responseCode = "404", description = "Incident not found")
+    })
+    public ResponseEntity<AppResponse<IncidentCommentResponse>> addComment(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateCommentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AppResponse.ok(commentService.addComment(id, request.content())));
+    }
+
+    @GetMapping("/nearby")
+    @Operation(
+            summary = "Get nearby incidents",
+            description = "Returns non-deleted incidents within radiusMeters of the given point, closest first — " +
+                    "shown to a civilian before they submit a report so they can avoid creating a duplicate."
+    )
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getNearbyIncidents(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(defaultValue = "1000") double radiusMeters) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getNearbyIncidents(latitude, longitude, radiusMeters)));
     }
 }

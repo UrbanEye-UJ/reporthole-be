@@ -58,4 +58,29 @@ public class SecretUtil {
             throw new RuntimeException("Error hashing email", e);
         }
     }
+
+    /**
+     * Masks an email address for display in admin lists, e.g. {@code "jo***@example.com"}.
+     *
+     * <p>Only the first character of the local part is shown; the rest of the local
+     * part is replaced with {@code ***}. Used so decrypted PII is never rendered in a
+     * list view — callers must go through an explicit "reveal" action (re-authentication
+     * required) to see the full address.</p>
+     *
+     * @param email the decrypted email address to mask
+     * @return the masked email, or {@code "***"} if the input has no {@code @}
+     */
+    public static String maskEmail(String email) {
+        if (email == null) {
+            return "***";
+        }
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        String localPart = email.substring(0, at);
+        String domain = email.substring(at);
+        String visible = localPart.length() <= 1 ? localPart : localPart.substring(0, 1);
+        return visible + "***" + domain;
+    }
 }

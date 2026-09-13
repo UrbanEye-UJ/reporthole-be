@@ -9,10 +9,15 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
+import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
+import za.co.urbaneye.reporthole.incident.dto.WorkflowEntryDTO;
+import za.co.urbaneye.reporthole.incident.entity.AiReviewDecision;
 import za.co.urbaneye.reporthole.incident.entity.Assignment;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentWorkflow;
@@ -26,7 +31,10 @@ import za.co.urbaneye.reporthole.incident.repository.IncidentRepository;
 import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
+import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
+import za.co.urbaneye.reporthole.notification.service.interfaces.INotificationService;
 import za.co.urbaneye.reporthole.user.entity.User;
+import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
@@ -48,8 +56,12 @@ public class IncidentServiceImpl implements IncidentService {
     private final AssignmentWorkflowRepository assignmentWorkflowRepository;
     private final AssignmentRepository assignmentRepository;
     private final IUserRepository userRepository;
+    private final IUserAuthRepository userAuthRepository;
     private final ImageStorageService imageStorageService;
     private final IncidentSseService incidentSseService;
+    private final IMailService mailService;
+    private final INotificationService notificationService;
+    private final IncidentProperties incidentProperties;
 
     private static final double MANUAL_DUPLICATE_RADIUS_METRES = 1_000.0;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
@@ -90,6 +102,8 @@ public class IncidentServiceImpl implements IncidentService {
                     .alreadyConfirmed(alreadyConfirmed)
                     .existingIncidentId(existing.getIncidentId())
                     .status(resolveStatus(existing.getIncidentId()))
+                    .aiGenerated(existing.isAiGenerated())
+                    .aiConfidence(existing.getAiConfidence())
                     .build();
         }
 
@@ -103,8 +117,23 @@ public class IncidentServiceImpl implements IncidentService {
         incident.setImageUrl(imageUrl);
         incident.setLocationAddress(request.locationAddress());
         incident.setUser(user);
+        if (request.confidence() != null) {
+            incident.setAiGenerated(true);
+            incident.setAiConfidence(request.confidence());
+        }
         final Incident saved = incidentRepository.save(incident);
         incidentReporterRepository.save(new IncidentReporter(saved, user));
+
+        // Notify all admins that a new incident needs attention.
+        String typeLabel = formatType(saved.getIncidentType());
+        userRepository.findByRole(UserRole.ADMIN).forEach(admin ->
+                notificationService.notify(admin, "New " + typeLabel + " report — awaiting verification"));
+
+        AssignmentStatus status = AssignmentStatus.REPORTED;
+        if (saved.isAiGenerated()) {
+            status = applyAiReviewDecision(saved);
+        }
+
         return IncidentResponseDTO.builder()
                 .incidentId(saved.getIncidentId())
                 .incidentType(saved.getIncidentType())
@@ -119,8 +148,37 @@ public class IncidentServiceImpl implements IncidentService {
                 .reportCount(saved.getReportCount())
                 .reporterCount(1)
                 .duplicate(false)
-                .status(AssignmentStatus.REPORTED)
+                .status(status)
+                .aiGenerated(saved.isAiGenerated())
+                .aiConfidence(saved.getAiConfidence())
                 .build();
+    }
+
+    /**
+     * Applies the AI confidence threshold to a newly created, AI-generated incident:
+     * confidence at or above {@link IncidentProperties#getAiApprovalThreshold()} is
+     * auto-verified, skipping manual review; anything lower is left as {@code REPORTED}
+     * so it surfaces in the normal admin verification queue.
+     *
+     * @return the resulting status, so the caller can return it in the response without
+     *         an extra lookup
+     */
+    private AssignmentStatus applyAiReviewDecision(Incident incident) {
+        AiReviewDecision decision = AiReviewDecision.from(
+                incident.getAiConfidence(), incidentProperties.getAiApprovalThreshold());
+
+        if (decision == AiReviewDecision.PENDING_REVIEW) {
+            return AssignmentStatus.REPORTED;
+        }
+
+        AssignmentWorkflow workflow = new AssignmentWorkflow();
+        workflow.setIncident(incident);
+        workflow.setStatus(AssignmentStatus.VERIFIED);
+        workflow.setNotes(String.format(
+                "Auto-approved by AI (confidence %.0f%%, threshold %.0f%%)",
+                incident.getAiConfidence() * 100, incidentProperties.getAiApprovalThreshold() * 100));
+        assignmentWorkflowRepository.save(workflow);
+        return AssignmentStatus.VERIFIED;
     }
 
     @Override
@@ -155,6 +213,8 @@ public class IncidentServiceImpl implements IncidentService {
                 .duplicate(true)
                 .existingIncidentId(incident.getIncidentId())
                 .status(resolveStatus(incidentId))
+                .aiGenerated(incident.isAiGenerated())
+                .aiConfidence(incident.getAiConfidence())
                 .build();
     }
 
@@ -168,17 +228,22 @@ public class IncidentServiceImpl implements IncidentService {
 
     @Override
     public List<IncidentResponseDTO> getRecentIncidents(int limit) {
-        return incidentRepository.findByDeletedFalseOrderByIncidentDateDesc(PageRequest.of(0, limit)).stream()
+        Municipality municipality = resolveAdminMunicipality();
+        List<Incident> incidents = municipality != null
+                ? incidentRepository.findForAdmin(municipality, PageRequest.of(0, limit))
+                : incidentRepository.findByDeletedFalseOrderByIncidentDateDesc(PageRequest.of(0, limit));
+        return incidents.stream()
                 .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
                 .toList();
     }
 
     @Override
     public IncidentStatsDTO getIncidentStats() {
-        return new IncidentStatsDTO(
-                incidentRepository.countByDeletedFalse(),
-                assignmentWorkflowRepository.countResolvedIncidents()
-        );
+        Municipality municipality = resolveAdminMunicipality();
+        long total = municipality != null
+                ? incidentRepository.countForAdmin(municipality)
+                : incidentRepository.countByDeletedFalse();
+        return new IncidentStatsDTO(total, assignmentWorkflowRepository.countResolvedIncidents());
     }
 
     @Override
@@ -211,13 +276,15 @@ public class IncidentServiceImpl implements IncidentService {
                 .reporterCount(reporterCount)
                 .duplicate(false)
                 .status(resolveStatus(incidentId))
+                .aiGenerated(incident.isAiGenerated())
+                .aiConfidence(incident.getAiConfidence())
                 .build();
     }
 
     @Override
     @Transactional
     public IncidentResponseDTO assignIncident(UUID incidentId, UUID contractorId) {
-        requireAdmin();
+        User admin = requireAdmin();
 
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new AssignmentException("Incident not found: " + incidentId));
@@ -226,6 +293,23 @@ public class IncidentServiceImpl implements IncidentService {
                 .orElseThrow(() -> new AssignmentException("Contractor not found: " + contractorId));
         if (contractor.getRole() != UserRole.CONTRACTOR) {
             throw new AssignmentException("Selected user is not a contractor");
+        }
+        boolean canHandle = contractor.getSpecialisations().contains(IssueType.OTHER)
+                || contractor.getSpecialisations().contains(incident.getIncidentType());
+        if (!canHandle) {
+            throw new AssignmentException(
+                    "Contractor is not specialised in " + incident.getIncidentType());
+        }
+
+        // Enforce municipality boundary — skip if either party has no municipality (bootstrap/legacy).
+        Municipality adminMunicipality = admin.getMunicipality();
+        if (adminMunicipality != null && incident.getMunicipality() != null
+                && !adminMunicipality.equals(incident.getMunicipality())) {
+            throw new AssignmentException("Incident belongs to a different municipality");
+        }
+        if (adminMunicipality != null && contractor.getMunicipality() != null
+                && !adminMunicipality.equals(contractor.getMunicipality())) {
+            throw new AssignmentException("Contractor belongs to a different municipality");
         }
 
         assignmentRepository.save(
@@ -241,6 +325,22 @@ public class IncidentServiceImpl implements IncidentService {
         workflow.setStatus(AssignmentStatus.ASSIGNED);
         workflow.setNotes("Assigned to " + contractor.getFirstName() + " " + contractor.getLastName());
         assignmentWorkflowRepository.save(workflow);
+
+        UserAuth contractorAuth = userAuthRepository.findById(contractor.getUserId())
+                .orElseThrow(() -> new AssignmentException("Contractor auth record not found"));
+        mailService.sendJobAssignedEmail(
+                contractorAuth.getEmail(),
+                contractor.getFirstName(),
+                incident.getIncidentType().name(),
+                incident.getLocationAddress(),
+                incident.getIncidentId().toString()
+        );
+
+        String label = formatType(incident.getIncidentType());
+        notificationService.notify(contractor, "You have been assigned a " + label + " job");
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "A contractor has been assigned to your " + label + " report")));
 
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
@@ -266,6 +366,12 @@ public class IncidentServiceImpl implements IncidentService {
             throw new AssignmentException("Only reported incidents can be verified");
         }
 
+        // Tag the incident to the verifying admin's municipality — it becomes their work item.
+        if (admin.getMunicipality() != null) {
+            incident.setMunicipality(admin.getMunicipality());
+            incidentRepository.save(incident);
+        }
+
         AssignmentWorkflow workflow = new AssignmentWorkflow();
         workflow.setIncident(incident);
         workflow.setUpdatedBy(admin);
@@ -275,6 +381,12 @@ public class IncidentServiceImpl implements IncidentService {
 
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        // Notify every reporter linked to this incident.
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Your " + label + " report has been verified")));
 
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
@@ -316,12 +428,17 @@ public class IncidentServiceImpl implements IncidentService {
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
 
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Work has started on your " + label + " report")));
+
         return toResponseDTO(incident, incident.getUser().getUserId());
     }
 
     @Override
     @Transactional
-    public IncidentResponseDTO rejectAssignment(UUID incidentId) {
+    public IncidentResponseDTO rejectAssignment(UUID incidentId, RejectAssignmentRequest request) {
         final UUID contractorId = currentUserId();
         Assignment assignment = assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, contractorId)
                 .orElseThrow(() -> new AssignmentException("Assignment not found for this contractor and incident"));
@@ -338,8 +455,42 @@ public class IncidentServiceImpl implements IncidentService {
         workflow.setIncident(incident);
         workflow.setUpdatedBy(contractor);
         workflow.setStatus(AssignmentStatus.VERIFIED);
-        workflow.setNotes("Rejected by " + contractor.getFirstName() + " " + contractor.getLastName() + " — needs reassignment");
+        workflow.setNotes("Rejected by " + contractor.getFirstName() + " " + contractor.getLastName()
+                + " — needs reassignment. Reason: " + request.reason());
         assignmentWorkflowRepository.save(workflow);
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        // Notify all admins that this incident needs reassignment.
+        String label = formatType(incident.getIncidentType());
+        userRepository.findByRole(UserRole.ADMIN).forEach(admin ->
+                notificationService.notify(admin, "Contractor rejected " + label + " — needs reassignment"));
+
+        return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    @Transactional
+    public IncidentResponseDTO addProgressUpdate(UUID incidentId, String note) {
+        final UUID contractorId = currentUserId();
+        Assignment assignment = assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, contractorId)
+                .orElseThrow(() -> new AssignmentException("Assignment not found for this contractor and incident"));
+
+        if (assignment.getStatus() != AssignmentStatus.IN_PROGRESS) {
+            throw new AssignmentException("Progress updates can only be added while the incident is IN_PROGRESS");
+        }
+
+        User contractor = assignment.getContractor();
+        Incident incident = assignment.getIncident();
+
+        AssignmentWorkflow update = AssignmentWorkflow.builder()
+                .incident(incident)
+                .updatedBy(contractor)
+                .status(AssignmentStatus.IN_PROGRESS)
+                .notes(note)
+                .build();
+        assignmentWorkflowRepository.save(update);
 
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
@@ -372,7 +523,21 @@ public class IncidentServiceImpl implements IncidentService {
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
 
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Your " + label + " report has been resolved")));
+
         return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    public List<IncidentResponseDTO> getIncidentsPendingAiReview() {
+        requireAdmin();
+        return incidentRepository.findByAiGeneratedTrueAndDeletedFalseOrderByIncidentDateDesc().stream()
+                .filter(incident -> resolveStatus(incident.getIncidentId()) == AssignmentStatus.REPORTED)
+                .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
+                .toList();
     }
 
     @Override
@@ -388,9 +553,84 @@ public class IncidentServiceImpl implements IncidentService {
         incidentRepository.save(incident);
     }
 
+    @Override
+    @Transactional
+    public IncidentResponseDTO reopenIncident(UUID incidentId) {
+        User admin = requireAdmin();
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new AssignmentException("Incident not found: " + incidentId));
+
+        if (resolveStatus(incidentId) != AssignmentStatus.RESOLVED) {
+            throw new AssignmentException("Only resolved incidents can be reopened");
+        }
+
+        // Remove the completed assignment so the admin can issue a fresh one.
+        assignmentRepository.deleteByIncident_IncidentId(incidentId);
+
+        AssignmentWorkflow workflow = new AssignmentWorkflow();
+        workflow.setIncident(incident);
+        workflow.setUpdatedBy(admin);
+        workflow.setStatus(AssignmentStatus.VERIFIED);
+        workflow.setNotes("Reopened by " + admin.getFirstName() + " " + admin.getLastName());
+        assignmentWorkflowRepository.save(workflow);
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        String label = formatType(incident.getIncidentType());
+        incidentReporterRepository.findUserIdsByIncidentId(incidentId).forEach(uid ->
+                userRepository.findById(uid).ifPresent(u ->
+                        notificationService.notify(u, "Your " + label + " report has been reopened for reassignment")));
+
+        return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    @Transactional
+    public IncidentResponseDTO reportStillUnresolved(UUID incidentId) {
+        final UUID userId = currentUserId();
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserServiceException("User not found"));
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new AssignmentException("Incident not found: " + incidentId));
+
+        if (resolveStatus(incidentId) != AssignmentStatus.RESOLVED) {
+            throw new AssignmentException("Only resolved incidents can be reported as still unresolved");
+        }
+
+        AssignmentWorkflow workflow = new AssignmentWorkflow();
+        workflow.setIncident(incident);
+        workflow.setStatus(AssignmentStatus.VERIFIED);
+        workflow.setNotes("Reported still unresolved by " + user.getFirstName() + " " + user.getLastName());
+        assignmentWorkflowRepository.save(workflow);
+
+        boolean alreadyLinked = incidentReporterRepository.existsByIncident_IncidentIdAndUser_UserId(incidentId, userId);
+        if (!alreadyLinked) {
+            incidentReporterRepository.save(new IncidentReporter(incident, user));
+        }
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
+        return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    public List<IncidentResponseDTO> getNearbyIncidents(double latitude, double longitude, double radiusMeters) {
+        return incidentRepository.findNearby(latitude, longitude, radiusMeters).stream()
+                .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
+                .toList();
+    }
+
     private IncidentResponseDTO toResponseDTO(Incident incident, UUID userId) {
+        UUID incidentId = incident.getIncidentId();
+        List<WorkflowEntryDTO> history = assignmentWorkflowRepository
+                .findAllByIncident_IncidentIdOrderByUpdatedDateAsc(incidentId)
+                .stream()
+                .map(WorkflowEntryDTO::from)
+                .toList();
         return IncidentResponseDTO.builder()
-                .incidentId(incident.getIncidentId())
+                .incidentId(incidentId)
                 .incidentType(incident.getIncidentType())
                 .description(incident.getDescription())
                 .source(incident.getSource())
@@ -401,10 +641,20 @@ public class IncidentServiceImpl implements IncidentService {
                 .locationAddress(incident.getLocationAddress())
                 .userId(userId)
                 .reportCount(incident.getReportCount())
-                .reporterCount(incidentReporterRepository.countByIncident_IncidentId(incident.getIncidentId()))
+                .reporterCount(incidentReporterRepository.countByIncident_IncidentId(incidentId))
                 .duplicate(false)
-                .status(resolveStatus(incident.getIncidentId()))
+                .status(resolveStatus(incidentId))
+                .workflowHistory(history)
+                .aiGenerated(incident.isAiGenerated())
+                .aiConfidence(incident.getAiConfidence())
                 .build();
+    }
+
+    /** Human-readable issue type label, e.g. "POTHOLE" → "Pothole". */
+    private static String formatType(IssueType type) {
+        if (type == null) return "incident";
+        String raw = type.name().replace('_', ' ').toLowerCase();
+        return Character.toUpperCase(raw.charAt(0)) + raw.substring(1);
     }
 
     /** Current status is the most recent workflow entry; incidents with no entries yet are still just REPORTED. */
@@ -412,6 +662,30 @@ public class IncidentServiceImpl implements IncidentService {
         return assignmentWorkflowRepository.findFirstByIncident_IncidentIdOrderByUpdatedDateDesc(incidentId)
                 .map(AssignmentWorkflow::getStatus)
                 .orElse(AssignmentStatus.REPORTED);
+    }
+
+    /**
+     * Returns the calling ADMIN's municipality, or {@code null} if:
+     * <ul>
+     *   <li>there is no authenticated principal (e.g. unit tests without a security context),</li>
+     *   <li>the caller is not an ADMIN, or</li>
+     *   <li>the admin has not been assigned a municipality yet (bootstrap/legacy accounts).</li>
+     * </ul>
+     * Callers treat {@code null} as "no municipality filter — show everything".
+     */
+    private Municipality resolveAdminMunicipality() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof String principal)) return null;
+        UUID callerId;
+        try {
+            callerId = UUID.fromString(principal);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        return userRepository.findById(callerId)
+                .filter(u -> u.getRole() == UserRole.ADMIN)
+                .map(User::getMunicipality)
+                .orElse(null);
     }
 
     private UUID currentUserId() {
