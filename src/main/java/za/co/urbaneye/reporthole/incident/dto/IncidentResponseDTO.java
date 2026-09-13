@@ -25,5 +25,7 @@ public record IncidentResponseDTO(
         boolean duplicate,
         boolean alreadyConfirmed,
         UUID existingIncidentId,
-        AssignmentStatus status
+        AssignmentStatus status,
+        boolean aiGenerated,
+        Double aiConfidence
 ) {}

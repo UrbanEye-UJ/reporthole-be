@@ -22,5 +22,12 @@ public record IncidentRequestDTO(
         String imageBase64,
 
         boolean forceCreate,
-        String locationAddress
+        String locationAddress,
+
+        /**
+         * AI detection confidence in [0.0, 1.0], set only for incidents originating
+         * from an automated detector (e.g. the dashcam inference pipeline). Null for
+         * manually reported incidents.
+         */
+        Double confidence
 ) {}

@@ -52,6 +52,9 @@ inference:
   discard-threshold: 0.65
   auto-log-threshold: 0.80
 
+incident:
+  ai-approval-threshold: 0.80
+
 mail:
   from: reporthole.noreply@gmail.com
   verification-url: ${SERVICES_WEB_BASE_URL_FRONTEND:https://localhost:3000}/verify?token=
