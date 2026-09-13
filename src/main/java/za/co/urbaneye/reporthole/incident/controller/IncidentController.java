@@ -25,10 +25,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 import java.util.UUID;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
+import za.co.urbaneye.reporthole.incident.clustering.IncidentClusterDTO;
+import za.co.urbaneye.reporthole.incident.clustering.IncidentClusteringService;
 import za.co.urbaneye.reporthole.incident.dto.AssignIncidentRequest;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
@@ -42,6 +45,7 @@ public class IncidentController {
 
     private final IncidentService incidentService;
     private final IncidentSseService incidentSseService;
+    private final IncidentClusteringService incidentClusteringService;
 
     @PostMapping("/create")
     @Operation(
@@ -98,6 +102,36 @@ public class IncidentController {
     )
     public ResponseEntity<AppResponse<IncidentStatsDTO>> getIncidentStats() {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentStats()));
+    }
+
+    @GetMapping("/pending-review")
+    @Operation(
+            summary = "Get AI incidents pending review",
+            description = "Returns AI-generated incidents whose detection confidence fell below the auto-approval " +
+                    "threshold, so they were left as REPORTED instead of being auto-verified. Admin only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Pending-review incidents returned (may be empty)"),
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin")
+    })
+    public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getIncidentsPendingAiReview() {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentsPendingAiReview()));
+    }
+
+    @GetMapping("/clusters")
+    @Operation(
+            summary = "Cluster incidents by location",
+            description = "Groups non-deleted incidents into up to k clusters of nearby locations using K-Means, " +
+                    "optionally restricted to a single issue type. Intended for admin dashboard hotspot maps."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Clusters returned (empty if there are no matching incidents)"),
+            @ApiResponse(responseCode = "500", description = "k is less than 1")
+    })
+    public ResponseEntity<AppResponse<List<IncidentClusterDTO>>> getIncidentClusters(
+            @RequestParam(defaultValue = "5") int k,
+            @RequestParam(required = false) IssueType type) {
+        return ResponseEntity.ok(AppResponse.ok(incidentClusteringService.clusterIncidents(k, type)));
     }
 
     @GetMapping("/my/search")
@@ -189,16 +223,18 @@ public class IncidentController {
     @PostMapping("/{id}/reject")
     @Operation(
             summary = "Reject assignment",
-            description = "Called by the assigned contractor to reject the incident. The assignment is removed from " +
-                    "the contractor and the incident reverts to VERIFIED so an admin can assign it to someone else."
+            description = "Called by the assigned contractor to reject the incident, giving a required reason. " +
+                    "The assignment is removed from the contractor and the incident reverts to VERIFIED so an " +
+                    "admin can assign it to someone else."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Assignment rejected"),
-            @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance"),
+            @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance, or reason is missing"),
             @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
     })
-    public ResponseEntity<AppResponse<IncidentResponseDTO>> rejectAssignment(@PathVariable UUID id) {
-        return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id)));
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> rejectAssignment(
+            @PathVariable UUID id, @Valid @RequestBody RejectAssignmentRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id, request)));
     }
 
     @GetMapping("/my-assignments")

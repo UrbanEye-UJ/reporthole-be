@@ -102,8 +102,10 @@ public class AsyncFrameSubmissionService implements IFrameSubmissionService {
     }
 
     /**
-     * Runs ONNX inference on the frame identified by {@code frameId}, applies
-     * threshold routing, and (for {@code AUTO_LOG}) creates an incident.
+     * Runs ONNX inference on the frame identified by {@code frameId}, applies threshold
+     * routing, and (for {@code AUTO_LOG} or {@code ESCALATE}) creates an incident, passing
+     * the detection confidence through so {@link IncidentService} can decide whether it is
+     * auto-verified or queued for human review.
      *
      * <p>Executes on the {@code inferenceExecutor} thread pool — never on the
      * HTTP request thread. All exceptions are caught, logged, and recorded on
@@ -142,8 +144,8 @@ public class AsyncFrameSubmissionService implements IFrameSubmissionService {
             job.setConfidence(result.confidence());
             job.setRoutingDecision(decision.name());
 
-            if (decision == RoutingDecision.AUTO_LOG && result.detected()) {
-                createIncidentForFrame(frameId, job, result);
+            if (result.detected() && (decision == RoutingDecision.AUTO_LOG || decision == RoutingDecision.ESCALATE)) {
+                createIncidentForFrame(frameId, job, result, decision);
             }
 
             job.setStatus(FrameStatus.DONE);
@@ -160,33 +162,36 @@ public class AsyncFrameSubmissionService implements IFrameSubmissionService {
     }
 
     /**
-     * Calls {@link IncidentService#createIncident} for a frame that exceeded the
-     * AUTO_LOG confidence threshold. The image is encoded to Base64 as required
-     * by {@link IncidentRequestDTO}. GPS coordinates are not available from the
-     * frame bytes — they default to 0.0 (the dashcam's GPS must be attached to
+     * Calls {@link IncidentService#createIncident} for a frame that reached at least the
+     * ESCALATE confidence threshold. The detection confidence is passed through on the
+     * request so {@link IncidentService} can apply the AI approval threshold: AUTO_LOG
+     * frames auto-verify, ESCALATE frames are left for human review. The image is encoded
+     * to Base64 as required by {@link IncidentRequestDTO}. GPS coordinates are not available
+     * from the frame bytes — they default to 0.0 (the dashcam's GPS must be attached to
      * the frame submission in a future enhancement).
      */
-    private void createIncidentForFrame(UUID frameId, FrameJob job, InferenceResult result) {
+    private void createIncidentForFrame(UUID frameId, FrameJob job, InferenceResult result, RoutingDecision decision) {
         try {
             String imageBase64 = Base64.getEncoder().encodeToString(job.getImageBytes());
             IssueType issueType = parseIssueType(result.label());
 
             IncidentRequestDTO request = new IncidentRequestDTO(
                     issueType,
-                    String.format("Dashcam AUTO_LOG: %s detected at %.0f%% confidence.",
-                            result.label(), result.confidence() * 100),
+                    String.format("Dashcam %s: %s detected at %.0f%% confidence.",
+                            decision, result.label(), result.confidence() * 100),
                     IncidentSource.DASHCAM,
                     0.0,   // latitude — GPS not yet attached to async frame submission
                     0.0,   // longitude
                     imageBase64,
                     true,  // forceCreate — bypass duplicate check for dashcam frames
-                    null
+                    null,
+                    result.confidence()
             );
 
             incidentService.createIncident(request);
-            log.info("[Frame {}] Incident created (AUTO_LOG)", frameId);
+            log.info("[Frame {}] Incident created ({})", frameId, decision);
         } catch (Exception ex) {
-            log.error("[Frame {}] Failed to create incident after AUTO_LOG: {}", frameId, ex.getMessage(), ex);
+            log.error("[Frame {}] Failed to create incident after {}: {}", frameId, decision, ex.getMessage(), ex);
             job.setStatus(FrameStatus.FAILED);
             job.setErrorMessage("Inference succeeded but incident creation failed: " + ex.getMessage());
         }

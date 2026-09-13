@@ -67,6 +67,12 @@ public class Incident {
     @Column(name = "INCIDENT_DELETED", nullable = false)
     private boolean deleted = false;
 
+    @Column(name = "INCIDENT_AI_GENERATED", nullable = false)
+    private boolean aiGenerated = false;
+
+    @Column(name = "INCIDENT_AI_CONFIDENCE")
+    private Double aiConfidence;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_USER_ID", nullable = false)
     private User user;
