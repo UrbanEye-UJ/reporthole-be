@@ -123,7 +123,7 @@ class DeviceIntegrationTest {
                 IssueType.POTHOLE, "Dashcam detected pothole", IncidentSource.DASHCAM,
                 -26.2041, 28.0473,
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
-                true, null
+                true, null, null
         );
 
         ResponseEntity<Map> resp = restTemplate.exchange(

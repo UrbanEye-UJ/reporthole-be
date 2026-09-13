@@ -36,13 +36,16 @@ inference/
 
 `RoutingDecision` determines what happens to each incoming frame based on the on-device confidence score sent in the request:
 
-| Score | Decision | Action |
+| Score | `RoutingDecision` | Action |
 |-------|----------|--------|
-| ≥ 80% | `ACCEPT_DIRECT` | Frame accepted immediately; no server inference |
-| 65–79% | `RUN_INFERENCE` | Frame queued for ONNX re-inference on the server |
-| < 65% | `REJECT` | Frame discarded |
+| ≥ 80% | `AUTO_LOG` | Incident created and auto-verified (see `incident` module's `AiReviewDecision`) |
+| 65–79% | `ESCALATE` | Incident created but left `REPORTED` for human (admin) review |
+| < 65% | `DISCARD` | Frame discarded, no incident created |
 
 Thresholds are configured in `InferenceProperties` (bound from `inference.*` in `application.yml`).
+Both `AUTO_LOG` and `ESCALATE` incidents are created via `IncidentService.createIncident`, passing
+the detection confidence through so the `incident` module's own AI approval threshold
+(`incident.ai-approval-threshold`) decides whether it's auto-verified or queued for review.
 
 ---
 

@@ -19,6 +19,12 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
     /** Most recently logged, non-deleted incidents across all users, newest first. */
     List<Incident> findByDeletedFalseOrderByIncidentDateDesc(Pageable pageable);
 
+    /** All non-deleted incidents, unordered — used as the input set for location clustering. */
+    List<Incident> findByDeletedFalse();
+
+    /** AI-generated, non-deleted incidents, newest first — candidates for the human-review queue. */
+    List<Incident> findByAiGeneratedTrueAndDeletedFalseOrderByIncidentDateDesc();
+
     long countByDeletedFalse();
 
     @Query("SELECT DISTINCT i FROM Incident i LEFT JOIN IncidentReporter ir ON ir.incident = i WHERE (i.user.userId = :userId OR ir.user.userId = :userId) AND i.deleted = false")

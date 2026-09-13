@@ -27,5 +27,7 @@ public record IncidentResponseDTO(
         boolean alreadyConfirmed,
         UUID existingIncidentId,
         AssignmentStatus status,
-        List<WorkflowEntryDTO> workflowHistory
+        List<WorkflowEntryDTO> workflowHistory,
+        boolean aiGenerated,
+        Double aiConfidence
 ) {}

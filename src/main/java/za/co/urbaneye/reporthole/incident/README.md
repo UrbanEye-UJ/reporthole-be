@@ -8,24 +8,33 @@ Core reporting module. Handles incident submission, PostGIS duplicate detection,
 
 ```
 incident/
+├── clustering/
+│   ├── GeoDistanceUtil.java          — Haversine great-circle distance
+│   ├── IncidentClusterDTO.java       — clusterIndex, centroid, member incident IDs
+│   ├── IncidentClusteringService.java
+│   └── KMeansIncidentClusteringService.java — Lloyd's K-Means + k-means++ seeding
+├── config/
+│   └── IncidentProperties.java      — aiApprovalThreshold (incident.ai-approval-threshold)
 ├── controller/
 │   └── IncidentController.java      — all /incidents/* endpoints
 ├── dto/
-│   ├── IncidentRequestDTO.java      — forceCreate flag bypasses ST_DWithin in tests
-│   └── IncidentResponseDTO.java     — includes duplicate: true/false, reportCount
+│   ├── IncidentRequestDTO.java      — forceCreate flag bypasses ST_DWithin in tests; optional confidence
+│   └── IncidentResponseDTO.java     — includes duplicate: true/false, reportCount, aiGenerated/aiConfidence
 ├── entity/
-│   ├── Incident.java                — image URL, PostGIS geometry point, status, source
+│   ├── Incident.java                — image URL, PostGIS geometry point, status, source, aiGenerated/aiConfidence
 │   ├── IncidentReporter.java        — join table: incident ↔ user (original + confirmers)
 │   ├── AssignmentWorkflow.java      — full audit trail of status transitions
 │   ├── Assignment.java
 │   ├── AssignmentStatus.java        — REPORTED → VERIFIED → ASSIGNED → IN_PROGRESS → RESOLVED
+│   ├── AiReviewDecision.java        — AUTO_APPROVED | PENDING_REVIEW, confidence-threshold gate
 │   ├── Image.java
 │   ├── IncidentSource.java          — MANUAL | DASHCAM
 │   └── IssueType.java               — POTHOLE | CRACKED_SURFACE | FADED_LANE_MARKINGS | ...
 ├── exception/
 │   └── IncidentServiceException.java (if present)
 ├── repository/
-│   ├── IncidentRepository.java      — findAllReportedByUser, findNearestDuplicate (PostGIS)
+│   ├── IncidentRepository.java      — findAllReportedByUser, findNearestDuplicate (PostGIS),
+│   │                                   findByDeletedFalse (clustering input), findByAiGeneratedTrue...
 │   └── IncidentReporterRepository.java — findUserIdsByIncidentId (SSE targeting)
 └── service/
     ├── interfaces/
@@ -107,10 +116,51 @@ The SSE endpoint (`GET /incidents/events`) authenticates via `?token=<jwt>` beca
 
 ---
 
+## AI confidence threshold (auto-approve vs. human review)
+
+`IncidentRequestDTO.confidence()` carries the detector's confidence score for AI-originated
+incidents (currently: dashcam frames routed `AUTO_LOG` or `ESCALATE` by the `inference` module's
+`RoutingDecision`; null for manual reports). When present, `IncidentServiceImpl.createIncident`:
+
+1. Sets `Incident.aiGenerated = true` and `Incident.aiConfidence = confidence`.
+2. Runs `AiReviewDecision.from(confidence, IncidentProperties.aiApprovalThreshold)` (default `0.80`):
+   - **`AUTO_APPROVED`** — an `AssignmentWorkflow` entry is written immediately with status
+     `VERIFIED`, skipping manual admin verification.
+   - **`PENDING_REVIEW`** — the incident is left as `REPORTED`, i.e. it surfaces in the normal
+     admin verification queue (`POST /incidents/{id}/verify`).
+
+`GET /incidents/pending-review` (admin only) lists AI-generated incidents still awaiting review —
+those left `REPORTED` because their confidence fell below the threshold.
+
+---
+
+## Location clustering (K-Means)
+
+`GET /incidents/clusters?k=5&type=POTHOLE` groups non-deleted incidents into up to `k` clusters of
+nearby locations, using `KMeansIncidentClusteringService`:
+
+- Distance metric: Haversine great-circle distance (`GeoDistanceUtil`) on each incident's
+  lat/lng (read from its JTS `Point`).
+- Centroid init: k-means++ seeding (weighted by squared distance from existing centroids) for
+  reliable convergence regardless of data layout.
+- Centroid update: arithmetic mean of member lat/lng — accurate enough at city scale.
+- Empty clusters (possible with a poor seed) are reseeded at the point currently farthest from
+  its own centroid so they can pick up members on the next iteration.
+- `k` is capped to the number of available incidents; `type` optionally restricts clustering to
+  a single `IssueType`.
+
+Intended for admin dashboard hotspot maps — clusters point at areas with a concentration of
+similar reports.
+
+---
+
 ## Tests
 
 | Test class | Type |
 |-----------|------|
-| `IncidentServiceImplTest` | Unit (Mockito) |
+| `IncidentServiceImplTest` | Unit (Mockito) — includes AI auto-approve/pending-review cases |
 | `IncidentControllerTest` | Unit (Mockito) |
 | `IncidentIntegrationTest` | Integration (SpringBootTest + H2, `forceCreate: true`) |
+| `AiReviewDecisionTest` | Unit — confidence threshold boundaries |
+| `GeoDistanceUtilTest` | Unit — Haversine distance sanity checks |
+| `KMeansIncidentClusteringServiceTest` | Unit (Mockito) — cluster separation, type filter, k edge cases |

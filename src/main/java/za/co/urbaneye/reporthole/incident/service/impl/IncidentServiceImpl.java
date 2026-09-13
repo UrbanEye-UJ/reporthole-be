@@ -9,11 +9,14 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
+import za.co.urbaneye.reporthole.incident.dto.RejectAssignmentRequest;
 import za.co.urbaneye.reporthole.incident.dto.ResolveIncidentRequest;
 import za.co.urbaneye.reporthole.incident.dto.WorkflowEntryDTO;
+import za.co.urbaneye.reporthole.incident.entity.AiReviewDecision;
 import za.co.urbaneye.reporthole.incident.entity.Assignment;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentWorkflow;
@@ -55,6 +58,7 @@ public class IncidentServiceImpl implements IncidentService {
     private final ImageStorageService imageStorageService;
     private final IncidentSseService incidentSseService;
     private final IMailService mailService;
+    private final IncidentProperties incidentProperties;
 
     private static final double MANUAL_DUPLICATE_RADIUS_METRES = 1_000.0;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
@@ -95,6 +99,8 @@ public class IncidentServiceImpl implements IncidentService {
                     .alreadyConfirmed(alreadyConfirmed)
                     .existingIncidentId(existing.getIncidentId())
                     .status(resolveStatus(existing.getIncidentId()))
+                    .aiGenerated(existing.isAiGenerated())
+                    .aiConfidence(existing.getAiConfidence())
                     .build();
         }
 
@@ -108,8 +114,18 @@ public class IncidentServiceImpl implements IncidentService {
         incident.setImageUrl(imageUrl);
         incident.setLocationAddress(request.locationAddress());
         incident.setUser(user);
+        if (request.confidence() != null) {
+            incident.setAiGenerated(true);
+            incident.setAiConfidence(request.confidence());
+        }
         final Incident saved = incidentRepository.save(incident);
         incidentReporterRepository.save(new IncidentReporter(saved, user));
+
+        AssignmentStatus status = AssignmentStatus.REPORTED;
+        if (saved.isAiGenerated()) {
+            status = applyAiReviewDecision(saved);
+        }
+
         return IncidentResponseDTO.builder()
                 .incidentId(saved.getIncidentId())
                 .incidentType(saved.getIncidentType())
@@ -124,8 +140,37 @@ public class IncidentServiceImpl implements IncidentService {
                 .reportCount(saved.getReportCount())
                 .reporterCount(1)
                 .duplicate(false)
-                .status(AssignmentStatus.REPORTED)
+                .status(status)
+                .aiGenerated(saved.isAiGenerated())
+                .aiConfidence(saved.getAiConfidence())
                 .build();
+    }
+
+    /**
+     * Applies the AI confidence threshold to a newly created, AI-generated incident:
+     * confidence at or above {@link IncidentProperties#getAiApprovalThreshold()} is
+     * auto-verified, skipping manual review; anything lower is left as {@code REPORTED}
+     * so it surfaces in the normal admin verification queue.
+     *
+     * @return the resulting status, so the caller can return it in the response without
+     *         an extra lookup
+     */
+    private AssignmentStatus applyAiReviewDecision(Incident incident) {
+        AiReviewDecision decision = AiReviewDecision.from(
+                incident.getAiConfidence(), incidentProperties.getAiApprovalThreshold());
+
+        if (decision == AiReviewDecision.PENDING_REVIEW) {
+            return AssignmentStatus.REPORTED;
+        }
+
+        AssignmentWorkflow workflow = new AssignmentWorkflow();
+        workflow.setIncident(incident);
+        workflow.setStatus(AssignmentStatus.VERIFIED);
+        workflow.setNotes(String.format(
+                "Auto-approved by AI (confidence %.0f%%, threshold %.0f%%)",
+                incident.getAiConfidence() * 100, incidentProperties.getAiApprovalThreshold() * 100));
+        assignmentWorkflowRepository.save(workflow);
+        return AssignmentStatus.VERIFIED;
     }
 
     @Override
@@ -160,6 +205,8 @@ public class IncidentServiceImpl implements IncidentService {
                 .duplicate(true)
                 .existingIncidentId(incident.getIncidentId())
                 .status(resolveStatus(incidentId))
+                .aiGenerated(incident.isAiGenerated())
+                .aiConfidence(incident.getAiConfidence())
                 .build();
     }
 
@@ -216,6 +263,8 @@ public class IncidentServiceImpl implements IncidentService {
                 .reporterCount(reporterCount)
                 .duplicate(false)
                 .status(resolveStatus(incidentId))
+                .aiGenerated(incident.isAiGenerated())
+                .aiConfidence(incident.getAiConfidence())
                 .build();
     }
 
@@ -340,7 +389,7 @@ public class IncidentServiceImpl implements IncidentService {
 
     @Override
     @Transactional
-    public IncidentResponseDTO rejectAssignment(UUID incidentId) {
+    public IncidentResponseDTO rejectAssignment(UUID incidentId, RejectAssignmentRequest request) {
         final UUID contractorId = currentUserId();
         Assignment assignment = assignmentRepository.findByIncident_IncidentIdAndContractor_UserId(incidentId, contractorId)
                 .orElseThrow(() -> new AssignmentException("Assignment not found for this contractor and incident"));
@@ -357,7 +406,8 @@ public class IncidentServiceImpl implements IncidentService {
         workflow.setIncident(incident);
         workflow.setUpdatedBy(contractor);
         workflow.setStatus(AssignmentStatus.VERIFIED);
-        workflow.setNotes("Rejected by " + contractor.getFirstName() + " " + contractor.getLastName() + " — needs reassignment");
+        workflow.setNotes("Rejected by " + contractor.getFirstName() + " " + contractor.getLastName()
+                + " — needs reassignment. Reason: " + request.reason());
         assignmentWorkflowRepository.save(workflow);
 
         Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
@@ -420,6 +470,15 @@ public class IncidentServiceImpl implements IncidentService {
         incidentSseService.pushIncidentUpdate(incidentId, recipients);
 
         return toResponseDTO(incident, incident.getUser().getUserId());
+    }
+
+    @Override
+    public List<IncidentResponseDTO> getIncidentsPendingAiReview() {
+        requireAdmin();
+        return incidentRepository.findByAiGeneratedTrueAndDeletedFalseOrderByIncidentDateDesc().stream()
+                .filter(incident -> resolveStatus(incident.getIncidentId()) == AssignmentStatus.REPORTED)
+                .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
+                .toList();
     }
 
     @Override
@@ -495,6 +554,8 @@ public class IncidentServiceImpl implements IncidentService {
                 .duplicate(false)
                 .status(resolveStatus(incidentId))
                 .workflowHistory(history)
+                .aiGenerated(incident.isAiGenerated())
+                .aiConfidence(incident.getAiConfidence())
                 .build();
     }
 
