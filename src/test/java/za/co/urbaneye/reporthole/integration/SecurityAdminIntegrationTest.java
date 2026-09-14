@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
+import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
 import za.co.urbaneye.reporthole.user.dto.RegisterRequest;
@@ -49,6 +51,9 @@ class SecurityAdminIntegrationTest {
 
     @Autowired
     private IUserAuthRepository userAuthRepository;
+
+    @Autowired
+    private IMunicipalityRepository municipalityRepository;
 
     private String base(String path) {
         return "http://localhost:" + port + "/api" + path;
@@ -136,10 +141,16 @@ class SecurityAdminIntegrationTest {
 
         sleepPastTokenSecond();
 
+        Municipality municipality = municipalityRepository.save(Municipality.builder()
+                .name("Integration Test Municipality " + UUID.randomUUID())
+                .province("Gauteng")
+                .build());
+
         // security admin grants ADMIN
         ResponseEntity<String> grant = restTemplate.exchange(
                 base("/admin/security/users/" + targetId + "/role"), HttpMethod.POST,
-                new HttpEntity<>(Map.of("role", "ADMIN", "reason", "integration test"), bearer(adminToken)),
+                new HttpEntity<>(Map.of("role", "ADMIN", "municipalityId", municipality.getId().toString(),
+                        "reason", "integration test"), bearer(adminToken)),
                 String.class);
         assertEquals(HttpStatus.OK, grant.getStatusCode(), grant.getBody());
 

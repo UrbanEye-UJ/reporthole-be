@@ -85,12 +85,15 @@ public class Incident {
     private User user;
 
     /**
-     * Municipality responsible for this incident. Null until an admin verifies it — at that point
-     * the incident is tagged to the verifying admin's municipality and becomes their work item.
-     * Unverified (null) incidents are visible to all admins so any municipality can claim them.
-     * Verification is rejected if {@link #location} falls outside the verifying admin's own
-     * municipality's real boundary polygon, where that municipality has boundary data on file
-     * (see {@code IncidentServiceImpl#verifyIncident}).
+     * Municipality responsible for this incident. Auto-assigned on creation by a spatial lookup
+     * against real municipal boundary polygons — whichever municipality's boundary contains
+     * {@link #location} (see {@code IncidentServiceImpl#createIncident}). Stays null if the
+     * location falls outside every municipality with boundary data on file; a null-municipality
+     * incident is visible to all admins so any municipality can claim it on verification.
+     * Verification re-tags the incident to the verifying admin's own municipality and is rejected
+     * if {@link #location} falls outside that municipality's boundary (see
+     * {@code IncidentServiceImpl#verifyIncident}) — belt-and-suspenders against the creation-time
+     * assignment being wrong or missing.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_MUNICIPALITY_ID")

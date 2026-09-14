@@ -180,23 +180,23 @@ public class ContractorServiceImpl implements IContractorService {
                 .action(AccessControlAction.PII_REVEALED)
                 .actor(admin)
                 .target(contractor)
-                .reason("Viewed decrypted contractor email")
+                .reason("Viewed decrypted contractor email and phone number")
                 .build());
-        log.info("Admin {} revealed email for contractor {}", admin.getUserId(), contractorId);
-        return new RevealEmailResponse(contractorAuth.getEmail());
+        log.info("Admin {} revealed email and phone for contractor {}", admin.getUserId(), contractorId);
+        return new RevealEmailResponse(contractorAuth.getEmail(), contractor.getPhoneNumber());
     }
 
     /**
-     * Builds a {@link ContractorResponse}, masking the email (e.g. {@code "jo***@example.com"})
-     * unless {@code maskEmail} is {@code false}.
+     * Builds a {@link ContractorResponse}, masking the email and phone number (e.g.
+     * {@code "jo***@example.com"}, {@code "082***890"}) unless {@code mask} is {@code false}.
      */
-    private ContractorResponse toResponse(User user, UserAuth auth, int activeJobs, int completedJobs, boolean maskEmail) {
+    private ContractorResponse toResponse(User user, UserAuth auth, int activeJobs, int completedJobs, boolean mask) {
         return new ContractorResponse(
                 user.getUserId(),
                 user.getFirstName(),
                 user.getLastName(),
-                maskEmail ? SecretUtil.maskEmail(auth.getEmail()) : auth.getEmail(),
-                user.getPhoneNumber(),
+                mask ? SecretUtil.maskEmail(auth.getEmail()) : auth.getEmail(),
+                mask ? SecretUtil.maskPhone(user.getPhoneNumber()) : user.getPhoneNumber(),
                 activeJobs,
                 completedJobs,
                 user.getCreatedAt(),
