@@ -1,5 +1,6 @@
 package za.co.urbaneye.reporthole.incident.repository;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -22,6 +23,19 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
 
     /** All non-deleted incidents, unordered — used as the input set for location clustering. */
     List<Incident> findByDeletedFalse();
+
+    /**
+     * Non-deleted incidents belonging to exactly one municipality, unordered — the
+     * municipality-filtered input set for location clustering (SECURITY_ADMIN map view).
+     */
+    List<Incident> findByDeletedFalseAndMunicipality_Id(UUID municipalityId);
+
+    /**
+     * Most recently logged, non-deleted incidents belonging to exactly one municipality,
+     * newest first — used when a SECURITY_ADMIN filters the map to a single municipality
+     * rather than their own (which ADMIN accounts get via {@link #findForAdmin}).
+     */
+    List<Incident> findByDeletedFalseAndMunicipality_IdOrderByIncidentDateDesc(UUID municipalityId, Pageable pageable);
 
     /** AI-generated, non-deleted incidents, newest first — candidates for the human-review queue. */
     List<Incident> findByAiGeneratedTrueAndDeletedFalseOrderByIncidentDateDesc();
@@ -128,6 +142,22 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
             @Param("latitude") double latitude,
             @Param("longitude") double longitude,
             @Param("radiusMeters") double radiusMeters
+    );
+
+    /**
+     * Paginated, filterable incident search for the SECURITY_ADMIN incidents view — either
+     * filter param may be null, meaning "no filter" on that dimension.
+     */
+    @Query("""
+            SELECT i FROM Incident i
+            WHERE i.deleted = false
+              AND (:municipalityId IS NULL OR i.municipality.id = :municipalityId)
+              AND (:issueType IS NULL OR i.incidentType = :issueType)
+            """)
+    Page<Incident> search(
+            @Param("municipalityId") UUID municipalityId,
+            @Param("issueType") IssueType issueType,
+            Pageable pageable
     );
 }
 

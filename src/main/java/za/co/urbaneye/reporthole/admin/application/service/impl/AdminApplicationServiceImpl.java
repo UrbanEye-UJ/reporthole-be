@@ -15,6 +15,7 @@ import za.co.urbaneye.reporthole.admin.application.service.interfaces.IAdminAppl
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
@@ -52,6 +53,7 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
     private final IUserRepository userRepository;
     private final IUserAuthRepository userAuthRepository;
     private final IAccessControlAuditRepository accessControlAuditRepository;
+    private final IAuditLogService auditLogService;
     private final IMailService mailService;
 
     @Override
@@ -152,7 +154,7 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
     @Override
     @Transactional
     public void reject(UUID applicationId) {
-        requireSecurityAdmin();
+        User rejector = requireSecurityAdmin();
 
         AdminApplication application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new AdminApplicationException("Application not found"));
@@ -164,6 +166,8 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
         applicationRepository.save(application);
 
         User applicant = application.getUser();
+        auditLogService.record(rejector, "ADMIN_APPLICATION_REJECTED", "ADMIN_APPLICATION", applicationId,
+                "Rejected admin application from " + applicant.getFirstName() + " " + applicant.getLastName());
         log.info("Admin application {} rejected for user {}", applicationId, applicant.getUserId());
 
         UserAuth auth = userAuthRepository.findById(applicant.getUserId())

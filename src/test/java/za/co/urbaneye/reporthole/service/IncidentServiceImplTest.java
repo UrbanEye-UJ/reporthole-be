@@ -15,6 +15,7 @@ import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
+import za.co.urbaneye.reporthole.incident.entity.AssignmentWorkflow;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IncidentSource;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
@@ -314,6 +315,26 @@ class IncidentServiceImplTest {
     }
 
     @Test
+    void getRecentIncidents_filtersByMunicipality_whenMunicipalityIdProvided() {
+        // SECURITY_ADMIN map view: an explicit municipalityId bypasses the caller-role-based
+        // resolveAdminMunicipality() scoping entirely and goes straight to the dedicated query.
+        UUID municipalityId = UUID.randomUUID();
+        Incident incident = new Incident();
+        incident.setIncidentId(UUID.randomUUID());
+        incident.setIncidentType(IssueType.POTHOLE);
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(stubUser());
+
+        when(incidentRepository.findByDeletedFalseAndMunicipality_IdOrderByIncidentDateDesc(eq(municipalityId), any()))
+                .thenReturn(List.of(incident));
+
+        List<IncidentResponseDTO> result = incidentService.getRecentIncidents(10, municipalityId);
+
+        assertThat(result).hasSize(1);
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
     void getIncidentById_returnsDTO_whenIncidentExists() {
         UUID id = UUID.randomUUID();
         User user = stubUser();
@@ -341,6 +362,37 @@ class IncidentServiceImplTest {
         assertThat(result.reporterCount()).isEqualTo(2);
         assertThat(result.imageUrl()).isEqualTo("http://img/test.jpg");
         assertThat(result.duplicate()).isFalse();
+    }
+
+    @Test
+    void getIncidentById_includesWorkflowHistory() {
+        // Regression test: getIncidentById used to build its DTO by hand and skip workflow
+        // history entirely, so rejection reasons and status notes never reached GET /incidents/{id}.
+        UUID id = UUID.randomUUID();
+        User user = stubUser();
+
+        Incident incident = new Incident();
+        incident.setIncidentId(id);
+        incident.setIncidentType(IssueType.POTHOLE);
+        incident.setSource(IncidentSource.MANUAL);
+        incident.setIncidentDate(LocalDateTime.now());
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(user);
+
+        AssignmentWorkflow rejection = new AssignmentWorkflow();
+        rejection.setIncident(incident);
+        rejection.setStatus(AssignmentStatus.VERIFIED);
+        rejection.setNotes("Rejected by Jane Doe — needs reassignment. Reason: Wrong address");
+
+        when(incidentRepository.findById(id)).thenReturn(Optional.of(incident));
+        when(incidentReporterRepository.countByIncident_IncidentId(id)).thenReturn(1);
+        when(assignmentWorkflowRepository.findAllByIncident_IncidentIdOrderByUpdatedDateAsc(id))
+                .thenReturn(List.of(rejection));
+
+        IncidentResponseDTO result = incidentService.getIncidentById(id);
+
+        assertThat(result.workflowHistory()).hasSize(1);
+        assertThat(result.workflowHistory().getFirst().notes()).contains("Reason: Wrong address");
     }
 
     @Test
@@ -468,6 +520,64 @@ class IncidentServiceImplTest {
                         && a.getContractor() == contractor));
         verify(mailService).sendJobAssignedEmail(
                 eq("con.tractor@example.com"), eq("Con"), eq("POTHOLE"), eq("Main Road, Johannesburg"), eq(incidentId.toString()));
+    }
+
+    @Test
+    void assignIncident_succeeds_whenAdminIncidentAndContractorShareSameMunicipality() {
+        // Regression test: Municipality had no equals()/hashCode(), so two separately loaded
+        // JPA instances of the *same* municipality row compared unequal, and the boundary
+        // check in assignIncident rejected every same-municipality assignment.
+        mockSecurityContext();
+        UUID incidentId = UUID.randomUUID();
+        UUID contractorId = UUID.randomUUID();
+        UUID municipalityId = UUID.randomUUID();
+
+        za.co.urbaneye.reporthole.admin.municipality.entity.Municipality adminMunicipality =
+                za.co.urbaneye.reporthole.admin.municipality.entity.Municipality.builder().id(municipalityId).build();
+        za.co.urbaneye.reporthole.admin.municipality.entity.Municipality incidentMunicipality =
+                za.co.urbaneye.reporthole.admin.municipality.entity.Municipality.builder().id(municipalityId).build();
+        za.co.urbaneye.reporthole.admin.municipality.entity.Municipality contractorMunicipality =
+                za.co.urbaneye.reporthole.admin.municipality.entity.Municipality.builder().id(municipalityId).build();
+
+        User admin = stubUser();
+        admin.setRole(UserRole.ADMIN);
+        admin.setMunicipality(adminMunicipality);
+
+        User contractor = new User();
+        contractor.setUserId(contractorId);
+        contractor.setRole(UserRole.CONTRACTOR);
+        contractor.setFirstName("Con");
+        contractor.setLastName("Tractor");
+        contractor.setSpecialisations(java.util.Set.of(IssueType.POTHOLE));
+        contractor.setMunicipality(contractorMunicipality);
+
+        Incident incident = new Incident();
+        incident.setIncidentId(incidentId);
+        incident.setIncidentType(IssueType.POTHOLE);
+        incident.setLocationAddress("Main Road, Johannesburg");
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(admin);
+        incident.setMunicipality(incidentMunicipality);
+
+        za.co.urbaneye.reporthole.user.entity.UserAuth contractorAuth =
+                za.co.urbaneye.reporthole.user.entity.UserAuth.builder()
+                        .authId(contractorId)
+                        .email("con.tractor@example.com")
+                        .build();
+
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(admin));
+        when(incidentRepository.findById(incidentId)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(contractorId)).thenReturn(Optional.of(contractor));
+        when(userAuthRepository.findById(contractorId)).thenReturn(Optional.of(contractorAuth));
+        when(incidentReporterRepository.countByIncident_IncidentId(incidentId)).thenReturn(1);
+        when(assignmentWorkflowRepository.findFirstByIncident_IncidentIdOrderByUpdatedDateDesc(incidentId))
+                .thenReturn(Optional.empty());
+
+        incidentService.assignIncident(incidentId, contractorId);
+
+        verify(assignmentRepository).save(argThat(a ->
+                a.getStatus() == za.co.urbaneye.reporthole.incident.entity.AssignmentStatus.ASSIGNED
+                        && a.getContractor() == contractor));
     }
 
     @Test
@@ -612,6 +722,34 @@ class IncidentServiceImplTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().incidentType()).isEqualTo(IssueType.POTHOLE);
+    }
+
+    @Test
+    void searchIncidents_mapsPageToResponse() {
+        UUID municipalityId = UUID.randomUUID();
+        Incident incident = new Incident();
+        incident.setIncidentId(UUID.randomUUID());
+        incident.setIncidentType(IssueType.POTHOLE);
+        incident.setLocation(GF.createPoint(new Coordinate(28.0473, -26.2041)));
+        incident.setUser(stubUser());
+
+        // PageImpl offset+pageSize > total (which is almost always true for a partial page)
+        // silently recomputes total to offset+content.size() — page 0 keeps the given total
+        // as-is since offset is 0, so use page 0 here to assert the pass-through total exactly.
+        org.springframework.data.domain.Page<Incident> page =
+                new org.springframework.data.domain.PageImpl<>(
+                        List.of(incident), org.springframework.data.domain.PageRequest.of(0, 25), 30);
+        when(incidentRepository.search(eq(municipalityId), eq(IssueType.POTHOLE), any()))
+                .thenReturn(page);
+
+        za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse result =
+                incidentService.searchIncidents(municipalityId, IssueType.POTHOLE, 0, 25);
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().getFirst().incidentType()).isEqualTo(IssueType.POTHOLE);
+        assertThat(result.totalElements()).isEqualTo(30);
+        assertThat(result.page()).isEqualTo(0);
+        assertThat(result.size()).isEqualTo(25);
     }
 
     private za.co.urbaneye.reporthole.incident.entity.Assignment buildPendingAssignment(UUID incidentId, User contractor) {

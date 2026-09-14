@@ -28,6 +28,7 @@ import za.co.urbaneye.reporthole.global.entity.AppResponse;
 import za.co.urbaneye.reporthole.incident.clustering.IncidentClusterDTO;
 import za.co.urbaneye.reporthole.incident.clustering.IncidentClusteringService;
 import za.co.urbaneye.reporthole.incident.dto.AssignIncidentRequest;
+import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
@@ -93,11 +94,34 @@ public class IncidentController {
     @GetMapping("/recent")
     @Operation(
             summary = "Get recent incidents",
-            description = "Returns the most recently logged incidents across all users, ordered by date descending. Intended for admin dashboards."
+            description = "Returns the most recently logged incidents, ordered by date descending. Intended for " +
+                    "admin dashboards. Optionally restricted to a single municipality with ?municipalityId= — " +
+                    "used by the SECURITY_ADMIN map view; an ADMIN caller is otherwise auto-scoped to their own " +
+                    "municipality regardless of this parameter's absence."
     )
     public ResponseEntity<AppResponse<List<IncidentResponseDTO>>> getRecentIncidents(
-            @RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(AppResponse.ok(incidentService.getRecentIncidents(limit)));
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) UUID municipalityId) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getRecentIncidents(limit, municipalityId)));
+    }
+
+    @GetMapping("/search")
+    @Operation(
+            summary = "Paginated, filterable incident search",
+            description = "Returns one page of incidents, newest first, optionally filtered by municipality " +
+                    "and/or issue type. Used by the SECURITY_ADMIN incidents table, which needs real " +
+                    "server-side pagination rather than the capped flat list from GET /recent."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Page returned")
+    })
+    public ResponseEntity<AppResponse<IncidentPageResponse>> searchIncidents(
+            @RequestParam(required = false) UUID municipalityId,
+            @RequestParam(required = false) IssueType type,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(AppResponse.ok(
+                incidentService.searchIncidents(municipalityId, type, page, Math.min(size, 50))));
     }
 
     @GetMapping("/stats")
@@ -127,7 +151,8 @@ public class IncidentController {
     @Operation(
             summary = "Cluster incidents by location",
             description = "Groups non-deleted incidents into up to k clusters of nearby locations using K-Means, " +
-                    "optionally restricted to a single issue type. Intended for admin dashboard hotspot maps."
+                    "optionally restricted to a single issue type and/or a single municipality with " +
+                    "?municipalityId=. Intended for admin dashboard and SECURITY_ADMIN map-view hotspot maps."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Clusters returned (empty if there are no matching incidents)"),
@@ -135,8 +160,9 @@ public class IncidentController {
     })
     public ResponseEntity<AppResponse<List<IncidentClusterDTO>>> getIncidentClusters(
             @RequestParam(defaultValue = "5") int k,
-            @RequestParam(required = false) IssueType type) {
-        return ResponseEntity.ok(AppResponse.ok(incidentClusteringService.clusterIncidents(k, type)));
+            @RequestParam(required = false) IssueType type,
+            @RequestParam(required = false) UUID municipalityId) {
+        return ResponseEntity.ok(AppResponse.ok(incidentClusteringService.clusterIncidents(k, type, municipalityId)));
     }
 
     @GetMapping("/my/search")

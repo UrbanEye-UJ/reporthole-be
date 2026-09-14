@@ -7,12 +7,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.service.interfaces.IDeviceService;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
+
+import java.util.UUID;
 
 /**
  * REST controller for dashcam device management.
@@ -62,5 +66,32 @@ public class DeviceController {
         String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         DeviceTokenResponse response = deviceService.generateToken(userId);
         return ResponseEntity.ok(AppResponse.ok(response));
+    }
+
+    /**
+     * Revokes a device token belonging to the authenticated user.
+     *
+     * <p>Use this when a physical dashcam device is lost, stolen, or being
+     * decommissioned — the token immediately stops authenticating.</p>
+     *
+     * @param id the {@code DashcamDevice} row id to revoke
+     * @return 204 No Content on success
+     */
+    @DeleteMapping("/token/{id}")
+    @Operation(
+            summary = "Revoke device token",
+            description = "Permanently deletes a device token so it can no longer be used to authenticate. "
+                    + "A user may only revoke their own device tokens."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Token revoked successfully"),
+            @ApiResponse(responseCode = "403", description = "Token belongs to another user"),
+            @ApiResponse(responseCode = "404", description = "Token not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<Void> revokeToken(@PathVariable UUID id) {
+        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        deviceService.revokeToken(userId, id);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -18,6 +18,7 @@ import za.co.urbaneye.reporthole.admin.contractor.service.interfaces.IContractor
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.repository.AssignmentRepository;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
@@ -46,6 +47,7 @@ public class ContractorServiceImpl implements IContractorService {
     private final PasswordEncoder encoder;
     private final IMailService mailService;
     private final IAccessControlAuditRepository auditRepository;
+    private final IAuditLogService auditLogService;
 
     @Value("${mail.contractor-invite-url}")
     private String inviteBaseUrl;
@@ -77,6 +79,8 @@ public class ContractorServiceImpl implements IContractorService {
 
         String inviteUrl = inviteBaseUrl + token;
         mailService.sendContractorInviteEmail(request.email(), inviteUrl);
+        auditLogService.record(admin, "CONTRACTOR_INVITED", "CONTRACTOR_INVITE", invite.getId(),
+                "Invited a contractor (" + request.specialisations() + ")");
         log.info("Contractor invite sent to email hash={}", emailHash);
     }
 
@@ -156,6 +160,7 @@ public class ContractorServiceImpl implements IContractorService {
     }
 
     @Override
+    @Transactional
     public RevealEmailResponse revealEmail(UUID contractorId, String password) {
         User admin = requireAdmin();
 
@@ -171,6 +176,12 @@ public class ContractorServiceImpl implements IContractorService {
         UserAuth contractorAuth = userAuthRepository.findById(contractor.getUserId())
                 .orElseThrow(() -> new ContractorException("Contractor auth record not found"));
 
+        auditRepository.save(AccessControlAuditEntry.builder()
+                .action(AccessControlAction.PII_REVEALED)
+                .actor(admin)
+                .target(contractor)
+                .reason("Viewed decrypted contractor email")
+                .build());
         log.info("Admin {} revealed email for contractor {}", admin.getUserId(), contractorId);
         return new RevealEmailResponse(contractorAuth.getEmail());
     }

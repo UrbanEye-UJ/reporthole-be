@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
@@ -20,10 +23,14 @@ import za.co.urbaneye.reporthole.user.service.interfaces.ILoginService;
 import za.co.urbaneye.reporthole.user.service.interfaces.IPasswordResetService;
 import za.co.urbaneye.reporthole.user.service.interfaces.IRegistrationService;
 
+import java.util.UUID;
+
 /**
  * REST controller for user authentication, registration, and account recovery.
  *
- * <p>Base URL: <b>/auth</b> — all endpoints are publicly accessible.</p>
+ * <p>Base URL: <b>/auth</b> — every endpoint is publicly reachable ({@code /auth/**} is
+ * {@code permitAll} at the filter-chain level in {@code SecurityConfig}), except
+ * {@code /logout} which requires an authenticated caller via {@code @PreAuthorize}.</p>
  *
  * @author Refentse
  * @since 1.0
@@ -135,6 +142,38 @@ public class AuthServiceController {
     })
     public ResponseEntity<AppResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         passwordResetService.resetPassword(request.token(), request.password());
+        return ResponseEntity.ok(AppResponse.ok(null));
+    }
+
+    /**
+     * Logs the authenticated caller out server-side.
+     *
+     * <p>Signing out was previously just a client-side cookie clear, so a captured JWT
+     * (browser history, a proxy log, a still-open dev-tools tab) stayed valid until it
+     * naturally expired even after the user "logged out" — most dangerous for a
+     * {@code SECURITY_ADMIN} account. This bumps the caller's own {@code credentialsValidFrom}
+     * watermark so their current token (and any other outstanding one) is rejected on its
+     * very next request, the same mechanism a {@code SECURITY_ADMIN} uses to force-logout
+     * someone else.</p>
+     *
+     * @param authentication the authenticated caller, injected by Spring Security
+     * @return 200 OK once the watermark has been bumped
+     */
+    @PostMapping("/logout")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Log out",
+            description = "Invalidates the caller's current session server-side (and any other outstanding " +
+                    "token for the account), not just the client-side cookie."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Session invalidated"),
+            @ApiResponse(responseCode = "401", description = "Unauthenticated")
+    })
+    public ResponseEntity<AppResponse<Void>> logout(Authentication authentication) {
+        String principalStr = authentication.getPrincipal() instanceof UserDetails ud
+                ? ud.getUsername() : (String) authentication.getPrincipal();
+        loginService.logout(UUID.fromString(principalStr));
         return ResponseEntity.ok(AppResponse.ok(null));
     }
 }

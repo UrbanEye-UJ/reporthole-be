@@ -32,12 +32,12 @@ public interface IMessageService {
     void sendMessage(SendMessageRequest request, UUID senderUserId);
 
     /**
-     * Returns all {@code CIVILIAN_COMPLAINT} messages, newest first.
-     * Intended for the ADMIN inbox.
+     * Returns all {@code USER_MESSAGE} messages, newest first — sent by any authenticated
+     * user (civilian, contractor, or admin), not civilians alone. Intended for the ADMIN inbox.
      *
-     * @return list of civilian complaint messages
+     * @return list of user messages
      */
-    List<MessageResponse> getCivilianComplaints();
+    List<MessageResponse> getUserMessages();
 
     /**
      * Returns all {@code CONTACT_US} messages, newest first.

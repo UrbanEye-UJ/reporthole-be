@@ -15,6 +15,7 @@ import za.co.urbaneye.reporthole.admin.municipality.exception.MunicipalityExcept
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityTokenRepository;
 import za.co.urbaneye.reporthole.admin.municipality.service.interfaces.IMunicipalityService;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -51,6 +52,7 @@ public class MunicipalityServiceImpl implements IMunicipalityService {
     private final IMunicipalityTokenRepository tokenRepository;
     private final IUserRepository userRepository;
     private final IMailService mailService;
+    private final IAuditLogService auditLogService;
 
     @Value("${mail.municipality-token-registration-url}")
     private String registrationUrl;
@@ -72,6 +74,8 @@ public class MunicipalityServiceImpl implements IMunicipalityService {
         Municipality saved = municipalityRepository.save(
                 Municipality.builder().name(name).province(province).createdBy(actor).build());
 
+        auditLogService.record(actor, "MUNICIPALITY_CREATED", "MUNICIPALITY", saved.getId(),
+                "Created municipality \"" + name + "\" (" + province + ")");
         log.info("SECURITY_ADMIN {} created municipality {} ({})", actor.getUserId(), saved.getId(), name);
         return MunicipalityResponse.from(saved, 0L);
     }
@@ -105,6 +109,8 @@ public class MunicipalityServiceImpl implements IMunicipalityService {
                 .note(request.note())
                 .build());
 
+        auditLogService.record(actor, "MUNICIPALITY_TOKEN_ISSUED", "MUNICIPALITY_TOKEN", saved.getId(),
+                "Issued a registration token for \"" + municipality.getName() + "\"");
         log.info("SECURITY_ADMIN {} issued token {} for municipality {}",
                 actor.getUserId(), saved.getId(), municipalityId);
 
@@ -145,6 +151,8 @@ public class MunicipalityServiceImpl implements IMunicipalityService {
 
         token.setRevokedAt(LocalDateTime.now());
         tokenRepository.save(token);
+        auditLogService.record(actor, "MUNICIPALITY_TOKEN_REVOKED", "MUNICIPALITY_TOKEN", tokenId,
+                "Revoked a registration token for \"" + token.getMunicipality().getName() + "\"");
         log.info("SECURITY_ADMIN {} revoked municipality token {}", actor.getUserId(), tokenId);
     }
 

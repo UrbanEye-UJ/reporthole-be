@@ -10,8 +10,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import za.co.urbaneye.reporthole.admin.security.dto.AuditEntryResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.GrantRoleRequest;
+import za.co.urbaneye.reporthole.admin.security.dto.RevealAccountResponse;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
@@ -45,6 +47,7 @@ class SecurityAdminServiceImplTest {
     @Mock private IUserRepository userRepository;
     @Mock private IUserAuthRepository userAuthRepository;
     @Mock private IAccessControlAuditRepository auditRepository;
+    @Mock private PasswordEncoder encoder;
 
     @InjectMocks
     private SecurityAdminServiceImpl service;
@@ -304,7 +307,9 @@ class SecurityAdminServiceImplTest {
     // ---------------- listUsers ----------------
 
     @Test
-    void listUsers_returnsEveryAccount_withEmailAndStatus() {
+    void listUsers_returnsEveryAccount_withMaskedNameAndEmail() {
+        // Regression test: the account list used to return decrypted name/email directly —
+        // it must now mask both the same way the civilian directory and contractor list do.
         when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(securityAdminCaller()));
 
         User u1 = User.builder().userId(TARGET_ID).role(UserRole.CIVILIAN)
@@ -319,8 +324,8 @@ class SecurityAdminServiceImplTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().userId()).isEqualTo(TARGET_ID);
-        assertThat(result.getFirst().name()).isEqualTo("Terry Target");
-        assertThat(result.getFirst().email()).isEqualTo("terry@example.com");
+        assertThat(result.getFirst().name()).isEqualTo("Terry T.");
+        assertThat(result.getFirst().email()).isEqualTo("t***@example.com");
         assertThat(result.getFirst().role()).isEqualTo(UserRole.CIVILIAN);
         assertThat(result.getFirst().status()).isEqualTo(UserStatus.ACTIVE);
     }
@@ -333,6 +338,48 @@ class SecurityAdminServiceImplTest {
         assertThatThrownBy(() -> service.listUsers())
                 .isInstanceOf(SecurityAdminException.class)
                 .hasMessageContaining("Only security admins");
+    }
+
+    // ---------------- revealAccount ----------------
+
+    @Test
+    void revealAccount_correctPassword_returnsDecryptedPii_writesAudit() {
+        User caller = securityAdminCaller();
+        UserAuth callerAuth = UserAuth.builder().authId(CALLER_ID).password("hashed").build();
+        when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(caller));
+        when(userAuthRepository.findById(CALLER_ID)).thenReturn(Optional.of(callerAuth));
+        when(encoder.matches("correct-password", "hashed")).thenReturn(true);
+
+        User target = targetUser(UserRole.CIVILIAN);
+        UserAuth targetAuth = UserAuth.builder().authId(TARGET_ID).email("terry@example.com").build();
+        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(target));
+        when(userAuthRepository.findById(TARGET_ID)).thenReturn(Optional.of(targetAuth));
+
+        RevealAccountResponse result = service.revealAccount(TARGET_ID, "correct-password");
+
+        assertThat(result.name()).isEqualTo("Terry Target");
+        assertThat(result.email()).isEqualTo("terry@example.com");
+
+        ArgumentCaptor<AccessControlAuditEntry> captor = ArgumentCaptor.forClass(AccessControlAuditEntry.class);
+        verify(auditRepository).save(captor.capture());
+        assertThat(captor.getValue().getAction()).isEqualTo(AccessControlAction.PII_REVEALED);
+        assertThat(captor.getValue().getActor()).isEqualTo(caller);
+        assertThat(captor.getValue().getTarget()).isEqualTo(target);
+    }
+
+    @Test
+    void revealAccount_incorrectPassword_throwsAndWritesNoAudit() {
+        User caller = securityAdminCaller();
+        UserAuth callerAuth = UserAuth.builder().authId(CALLER_ID).password("hashed").build();
+        when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(caller));
+        when(userAuthRepository.findById(CALLER_ID)).thenReturn(Optional.of(callerAuth));
+        when(encoder.matches("wrong-password", "hashed")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.revealAccount(TARGET_ID, "wrong-password"))
+                .isInstanceOf(SecurityAdminException.class)
+                .hasMessageContaining("Incorrect password");
+
+        verify(auditRepository, never()).save(any());
     }
 
     // ---------------- listAudit ----------------

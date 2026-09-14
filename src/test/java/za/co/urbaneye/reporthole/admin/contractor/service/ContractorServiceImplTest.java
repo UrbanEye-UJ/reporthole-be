@@ -20,6 +20,7 @@ import za.co.urbaneye.reporthole.admin.contractor.repository.ContractorInviteRep
 import za.co.urbaneye.reporthole.admin.contractor.service.impl.ContractorServiceImpl;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.incident.repository.AssignmentRepository;
@@ -56,6 +57,7 @@ class ContractorServiceImplTest {
     @Mock private PasswordEncoder encoder;
     @Mock private IMailService mailService;
     @Mock private IAccessControlAuditRepository auditRepository;
+    @Mock private IAuditLogService auditLogService;
 
     @InjectMocks
     private ContractorServiceImpl service;

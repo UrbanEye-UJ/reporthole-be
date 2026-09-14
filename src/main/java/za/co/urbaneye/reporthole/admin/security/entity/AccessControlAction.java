@@ -39,5 +39,14 @@ public enum AccessControlAction {
      * A new account was created — self-signup, contractor invite completion, or admin
      * onboarding via a municipality token. Recorded for every role.
      */
-    USER_REGISTERED
+    USER_REGISTERED,
+
+    /**
+     * A {@code SECURITY_ADMIN} viewed an account's decrypted name and email after a
+     * step-up password re-check — the Manage Accounts list shows only masked PII otherwise.
+     */
+    PII_REVEALED,
+
+    /** An account was automatically locked after 3 consecutive failed login attempts. */
+    ACCOUNT_LOCKED
 }

@@ -29,12 +29,16 @@ public class KMeansIncidentClusteringService implements IncidentClusteringServic
     private final IncidentRepository incidentRepository;
 
     @Override
-    public List<IncidentClusterDTO> clusterIncidents(int k, IssueType issueType) {
+    public List<IncidentClusterDTO> clusterIncidents(int k, IssueType issueType, UUID municipalityId) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1");
         }
 
-        List<LocatedIncident> points = incidentRepository.findByDeletedFalse().stream()
+        List<Incident> source = municipalityId != null
+                ? incidentRepository.findByDeletedFalseAndMunicipality_Id(municipalityId)
+                : incidentRepository.findByDeletedFalse();
+
+        List<LocatedIncident> points = source.stream()
                 .filter(incident -> issueType == null || incident.getIncidentType() == issueType)
                 .map(this::toLocatedIncident)
                 .toList();

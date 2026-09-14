@@ -29,8 +29,9 @@ import java.util.UUID;
  *
  * <ul>
  *     <li>{@code POST /messages/contact} — public, no JWT required (landing-page contact form)</li>
- *     <li>{@code POST /messages} — any authenticated user sends a message to the admin team</li>
- *     <li>{@code GET /messages/admin} — ADMIN or SECURITY_ADMIN reads civilian complaints</li>
+ *     <li>{@code POST /messages} — any authenticated user (civilian, contractor, or admin)
+ *         sends a message to the admin team</li>
+ *     <li>{@code GET /messages/admin} — ADMIN or SECURITY_ADMIN reads messages from any user</li>
  *     <li>{@code GET /messages/security-admin} — SECURITY_ADMIN only reads contact-us submissions</li>
  * </ul>
  *
@@ -40,7 +41,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("messages")
 @RequiredArgsConstructor
-@Tag(name = "Messages", description = "In-app messaging: civilian complaints to admins, and landing-page contact-form submissions.")
+@Tag(name = "Messages", description = "In-app messaging: messages from any user to admins, and landing-page contact-form submissions.")
 public class MessageController {
 
     private final IMessageService messageService;
@@ -63,8 +64,8 @@ public class MessageController {
     @PostMapping
     @Operation(
             summary = "Send a message to the admin team",
-            description = "Stores a CIVILIAN_COMPLAINT message from the authenticated user. Visible to admins " +
-                    "via GET /messages/admin."
+            description = "Stores a USER_MESSAGE from the authenticated user — any role, not civilians only. " +
+                    "Visible to admins via GET /messages/admin."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Message sent"),
@@ -83,10 +84,11 @@ public class MessageController {
     }
 
     @GetMapping("/admin")
-    @PreAuthorize("hasRole('SECURITY_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECURITY_ADMIN')")
     @Operation(
-            summary = "List civilian complaint messages",
-            description = "Returns all CIVILIAN_COMPLAINT messages, newest first. SECURITY_ADMIN only."
+            summary = "List messages from users",
+            description = "Returns all USER_MESSAGE entries, newest first — sent by any authenticated user " +
+                    "(civilian, contractor, or admin), not civilians alone. ADMIN or SECURITY_ADMIN."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Messages returned"),
@@ -94,7 +96,7 @@ public class MessageController {
             @ApiResponse(responseCode = "403", description = "Insufficient role")
     })
     public ResponseEntity<AppResponse<List<MessageResponse>>> getAdminMessages() {
-        return ResponseEntity.ok(AppResponse.ok(messageService.getCivilianComplaints()));
+        return ResponseEntity.ok(AppResponse.ok(messageService.getUserMessages()));
     }
 
     @GetMapping("/security-admin")

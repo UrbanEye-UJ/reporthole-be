@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.incident.dto.IncidentCommentResponse;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IncidentComment;
@@ -34,6 +35,7 @@ class IncidentCommentServiceTest {
     @Mock private IncidentCommentRepository commentRepository;
     @Mock private IncidentRepository incidentRepository;
     @Mock private IUserRepository userRepository;
+    @Mock private IAuditLogService auditLogService;
     @Mock private SecurityContext securityContext;
     @Mock private Authentication authentication;
 
@@ -76,7 +78,8 @@ class IncidentCommentServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).content()).isEqualTo("Pothole is very deep");
-        assertThat(result.get(0).authorName()).isEqualTo("Jane Doe");
+        // Comments are visible to any authenticated user, so a civilian author's name is masked.
+        assertThat(result.get(0).authorName()).isEqualTo("Jane D.");
         assertThat(result.get(0).authorRole()).isEqualTo("CIVILIAN");
     }
 
@@ -97,12 +100,13 @@ class IncidentCommentServiceTest {
         IncidentCommentResponse result = commentService.addComment(incidentId, "Fixed now");
 
         assertThat(result.content()).isEqualTo("Fixed now");
-        assertThat(result.authorName()).isEqualTo("Jane Doe");
+        // Comments are visible to any authenticated user, so a civilian author's name is masked.
+        assertThat(result.authorName()).isEqualTo("Jane D.");
         verify(commentRepository).save(any(IncidentComment.class));
     }
 
     @Test
-    void addComment_adminRole_authorRoleIsAdmin() {
+    void addComment_adminRole_authorRoleIsAdminAndNameUnmasked() {
         author.setRole(UserRole.ADMIN);
         when(incidentRepository.findById(incidentId)).thenReturn(Optional.of(incident));
         when(userRepository.findById(userId)).thenReturn(Optional.of(author));
@@ -115,5 +119,7 @@ class IncidentCommentServiceTest {
         IncidentCommentResponse result = commentService.addComment(incidentId, "Assigned to contractor");
 
         assertThat(result.authorRole()).isEqualTo("ADMIN");
+        // Staff names are shown in full — only civilian PII is masked.
+        assertThat(result.authorName()).isEqualTo("Jane Doe");
     }
 }

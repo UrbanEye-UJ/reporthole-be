@@ -2,6 +2,7 @@ package za.co.urbaneye.reporthole.admin.security.service.interfaces;
 
 import za.co.urbaneye.reporthole.admin.security.dto.AuditEntryResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.GrantRoleRequest;
+import za.co.urbaneye.reporthole.admin.security.dto.RevealAccountResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.SecurityUserResponse;
 
 import java.util.List;
@@ -82,13 +83,28 @@ public interface ISecurityAdminService {
     void forceLogout(UUID targetUserId, String reason);
 
     /**
-     * Lists every account so a security admin can pick one to act on.
+     * Lists every account so a security admin can pick one to act on. Name and email come back
+     * masked — see {@link #revealAccount} to view either in full.
      *
-     * @return all users with id, name, email, role and status, ordered by creation time
+     * @return all users with id, masked name, masked email, role and status, ordered by creation time
      * @throws za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException
      *         if the caller is not a security admin
      */
     List<SecurityUserResponse> listUsers();
+
+    /**
+     * Returns an account's decrypted name and email after verifying the calling security
+     * admin's own current password as a step-up re-authentication check. Writes a
+     * {@code PII_REVEALED} audit row.
+     *
+     * @param targetUserId the account whose PII should be revealed
+     * @param password     the calling security admin's own current password
+     * @return the account's decrypted name and email
+     * @throws za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException
+     *         if the caller is not a security admin, the password is incorrect, or the target
+     *         does not exist
+     */
+    RevealAccountResponse revealAccount(UUID targetUserId, String password);
 
     /**
      * Returns the access-control audit trail, newest first.
