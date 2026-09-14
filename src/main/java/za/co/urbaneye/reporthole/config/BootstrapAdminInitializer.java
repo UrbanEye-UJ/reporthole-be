@@ -9,6 +9,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
@@ -43,6 +44,7 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
     private final IUserAuthRepository authRepository;
     private final IUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IAuditLogService auditLogService;
 
     @Value("${app.bootstrap-admin.enabled:false}")
     private boolean enabled;
@@ -88,7 +90,14 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
                 .role(UserRole.SECURITY_ADMIN)
                 .specialisations(Set.of())
                 .build();
-        userRepository.save(user);
+        // User's id is manually assigned (not @GeneratedValue), so Spring Data treats this as an
+        // update and merges rather than persists — capture the returned managed instance rather
+        // than reusing the transient `user` reference, or the audit call below fails with
+        // TransientObjectException when it tries to associate it as the entry's actor.
+        final User savedUser = userRepository.save(user);
+
+        auditLogService.record(savedUser, "SECURITY_ADMIN_BOOTSTRAPPED", "USER", savedUser.getUserId(),
+                "Initial platform SECURITY_ADMIN account created on startup");
 
         log.warn("[BOOTSTRAP] Seeded platform SECURITY_ADMIN: {} (id={}). "
                 + "Change the password immediately if this is a production environment.",

@@ -61,7 +61,7 @@ class MunicipalityAdminControllerTest {
     private static final UUID MUNI_ID = UUID.randomUUID();
 
     private MunicipalityResponse municipalityResponse() {
-        return new MunicipalityResponse(MUNI_ID, "City of Tshwane", "Gauteng", 0L, LocalDateTime.now());
+        return new MunicipalityResponse(MUNI_ID, "City of Tshwane", "Gauteng", 0L, LocalDateTime.now(), null);
     }
 
     private MunicipalityTokenResponse tokenResponse() {

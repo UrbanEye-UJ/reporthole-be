@@ -7,6 +7,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import za.co.urbaneye.reporthole.admin.municipality.dto.MunicipalityBoundaryResponse;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.user.dto.UpdateProfileRequest;
 import za.co.urbaneye.reporthole.user.dto.UserProfileResponse;
@@ -19,6 +21,8 @@ import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserProfileService;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,6 +40,7 @@ public class UserProfileServiceImpl implements IUserProfileService {
     private final IUserRepository userRepository;
     private final IUserAuthRepository userAuthRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IAuditLogService auditLogService;
 
     @Override
     public UserProfileResponse getProfile() {
@@ -59,6 +64,7 @@ public class UserProfileServiceImpl implements IUserProfileService {
         user.setLastName(request.lastName());
         user.setPhoneNumber(request.phoneNumber());
         userRepository.save(user);
+        auditLogService.record(user, "PROFILE_UPDATED", "USER", userId, "Updated own profile details");
         return toResponse(user, auth);
     }
 
@@ -66,10 +72,16 @@ public class UserProfileServiceImpl implements IUserProfileService {
     @Transactional
     public void deleteAccount() {
         UUID userId = currentUserId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserServiceException("User not found"));
         UserAuth auth = userAuthRepository.findById(userId)
                 .orElseThrow(() -> new UserServiceException("User not found"));
         auth.setStatus(UserStatus.DELETED);
+        // Bump the watermark so the account's existing JWT stops working immediately,
+        // instead of remaining valid until it naturally expires (mirrors LoginServiceImpl.logout()).
+        auth.setCredentialsValidFrom(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         userAuthRepository.save(auth);
+        auditLogService.record(user, "ACCOUNT_DELETED", "USER", userId, "Account self-deleted");
     }
 
     @Override
@@ -85,12 +97,17 @@ public class UserProfileServiceImpl implements IUserProfileService {
         }
         user.setSpecialisations(specialisations);
         userRepository.save(user);
+        auditLogService.record(user, "SPECIALISATIONS_UPDATED", "USER", userId,
+                "Updated own specialisations to " + specialisations);
         return toResponse(user, auth);
     }
 
     private UserProfileResponse toResponse(User user, UserAuth auth) {
         String municipalityName = user.getMunicipality() != null
                 ? user.getMunicipality().getName()
+                : null;
+        MunicipalityBoundaryResponse municipalityBoundary = user.getMunicipality() != null
+                ? MunicipalityBoundaryResponse.from(user.getMunicipality().getBoundary())
                 : null;
         Set<IssueType> specialisations = user.getRole() == UserRole.CONTRACTOR
                 ? user.getSpecialisations()
@@ -104,7 +121,8 @@ public class UserProfileServiceImpl implements IUserProfileService {
                 user.getRole(),
                 municipalityName,
                 user.getCreatedAt(),
-                specialisations
+                specialisations,
+                municipalityBoundary
         );
     }
 

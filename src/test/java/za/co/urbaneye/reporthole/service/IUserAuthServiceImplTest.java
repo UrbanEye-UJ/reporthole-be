@@ -204,15 +204,21 @@ class IUserAuthServiceImplTest {
 
     @Test
     void shouldLockAccountAfterThreeFailedAttempts() {
+        UUID userId = UUID.randomUUID();
         UserAuth userAuth = UserAuth.builder()
-                .authId(UUID.randomUUID())
+                .authId(userId)
                 .password("hashed")
                 .status(UserStatus.ACTIVE)
                 .retries(2)
                 .build();
 
+        User user = new User();
+        user.setUserId(userId);
+        user.setRole(UserRole.CIVILIAN);
+
         when(repository.findByEmailHash(anyString())).thenReturn(Optional.of(userAuth));
         when(encoder.matches(anyString(), anyString())).thenReturn(false);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
         UserServiceException ex = assertThrows(UserServiceException.class,
                 () -> loginService.loginUser(new LoginRequest("a@b.com", "wrong")));
@@ -220,6 +226,10 @@ class IUserAuthServiceImplTest {
         assertEquals(UserStatus.LOCKED, userAuth.getStatus());
         assertTrue(ex.getMessage().contains("locked"));
         verify(repository).save(userAuth);
+        verify(auditRepository).save(argThat(entry ->
+                entry.getAction() == za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction.ACCOUNT_LOCKED
+                && entry.getActor().getUserId().equals(userId)
+        ));
     }
 
     @Test
@@ -256,5 +266,37 @@ class IUserAuthServiceImplTest {
 
         assertTrue(ex.getMessage().contains("not verified") || ex.getMessage().contains("verif"));
         verify(encoder, never()).matches(anyString(), anyString());
+    }
+
+    @Test
+    void logout_bumpsCredentialsValidFromAndWritesSelfTargetedAudit() {
+        // Regression test: signing out used to be a client-side cookie clear only, so a
+        // captured JWT stayed valid until it naturally expired. logout() must bump the
+        // watermark JwtAuthenticationFilter checks on every request.
+        UUID userId = UUID.randomUUID();
+        UserAuth userAuth = UserAuth.builder().authId(userId).status(UserStatus.ACTIVE).build();
+        User user = new User();
+        user.setUserId(userId);
+
+        when(repository.findById(userId)).thenReturn(Optional.of(userAuth));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        loginService.logout(userId);
+
+        verify(repository).save(argThat(saved -> saved.getCredentialsValidFrom() != null));
+        verify(auditRepository).save(argThat(entry ->
+                entry.getAction() == za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction.SESSIONS_REVOKED
+                        && entry.getActor().getUserId().equals(userId)
+                        && entry.getTarget().getUserId().equals(userId)
+        ));
+    }
+
+    @Test
+    void logout_throwsWhenAccountNotFound() {
+        UUID userId = UUID.randomUUID();
+        when(repository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(UserServiceException.class, () -> loginService.logout(userId));
+        verify(auditRepository, never()).save(any());
     }
 }

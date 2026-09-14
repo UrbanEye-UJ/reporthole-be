@@ -17,8 +17,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.urbaneye.reporthole.admin.security.dto.AccountActionRequest;
 import za.co.urbaneye.reporthole.admin.security.dto.AuditEntryResponse;
+import za.co.urbaneye.reporthole.admin.security.dto.AuditLogEntryResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.GrantRoleRequest;
+import za.co.urbaneye.reporthole.admin.security.dto.RevealAccountRequest;
+import za.co.urbaneye.reporthole.admin.security.dto.RevealAccountResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.SecurityUserResponse;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.ISecurityAdminService;
 import za.co.urbaneye.reporthole.global.entity.AppResponse;
 
@@ -49,6 +53,7 @@ import java.util.UUID;
 public class SecurityAdminController {
 
     private final ISecurityAdminService securityAdminService;
+    private final IAuditLogService auditLogService;
 
     @GetMapping("/users")
     @Operation(
@@ -62,6 +67,24 @@ public class SecurityAdminController {
     })
     public ResponseEntity<AppResponse<List<SecurityUserResponse>>> listUsers() {
         return ResponseEntity.ok(AppResponse.ok(securityAdminService.listUsers()));
+    }
+
+    @PostMapping("/users/{userId}/reveal")
+    @Operation(
+            summary = "Reveal an account's decrypted PII",
+            description = "Returns the account's decrypted name and email after verifying the calling security " +
+                    "admin's own current password as a step-up re-authentication check. Writes a PII_REVEALED " +
+                    "audit row. Security admin only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "PII revealed"),
+            @ApiResponse(responseCode = "401", description = "Incorrect password"),
+            @ApiResponse(responseCode = "403", description = "Caller is not a security admin"),
+            @ApiResponse(responseCode = "404", description = "Target user not found")
+    })
+    public ResponseEntity<AppResponse<RevealAccountResponse>> reveal(
+            @PathVariable UUID userId, @Valid @RequestBody RevealAccountRequest request) {
+        return ResponseEntity.ok(AppResponse.ok(securityAdminService.revealAccount(userId, request.password())));
     }
 
     @PostMapping("/users/{userId}/role")
@@ -169,5 +192,21 @@ public class SecurityAdminController {
     public ResponseEntity<AppResponse<List<AuditEntryResponse>>> listAudit(
             @RequestParam(name = "userId", required = false) UUID userId) {
         return ResponseEntity.ok(AppResponse.ok(securityAdminService.listAudit(userId)));
+    }
+
+    @GetMapping("/audit-log")
+    @Operation(
+            summary = "Read the general-purpose audit log",
+            description = "Returns every recorded state-changing action that isn't an identity/accountability " +
+                    "action already covered by GET /audit — contractor invites, PII reveals, municipality and " +
+                    "token management, admin-application decisions, specialisation changes, comments and " +
+                    "messages. Newest first, append-only. Security admin only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Audit log returned"),
+            @ApiResponse(responseCode = "403", description = "Caller is not a security admin")
+    })
+    public ResponseEntity<AppResponse<List<AuditLogEntryResponse>>> listAuditLog() {
+        return ResponseEntity.ok(AppResponse.ok(auditLogService.listAll()));
     }
 }

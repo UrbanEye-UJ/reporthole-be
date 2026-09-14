@@ -1,5 +1,6 @@
 package za.co.urbaneye.reporthole.incident.service.interfaces;
 
+import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
@@ -14,8 +15,17 @@ public interface IncidentService {
     IncidentResponseDTO createIncident(IncidentRequestDTO request);
     List<IncidentResponseDTO> getMyIncidents();
 
-    /** Returns the most recently logged incidents across all users, ordered by date descending. */
-    List<IncidentResponseDTO> getRecentIncidents(int limit);
+    /**
+     * Returns the most recently logged incidents, ordered by date descending.
+     *
+     * @param limit          max number of incidents to return
+     * @param municipalityId when non-null, restricts results to exactly this municipality —
+     *                       used by the SECURITY_ADMIN map view to inspect one municipality at
+     *                       a time; when null, falls back to the caller's own scoping (an
+     *                       ADMIN sees their municipality plus unverified incidents, anyone
+     *                       else sees everything)
+     */
+    List<IncidentResponseDTO> getRecentIncidents(int limit, UUID municipalityId);
 
     /** Platform-wide totals for dashboard KPI cards. */
     IncidentStatsDTO getIncidentStats();
@@ -84,4 +94,15 @@ public interface IncidentService {
      * independent of issue type, unlike the submission-time duplicate check.
      */
     List<IncidentResponseDTO> getNearbyIncidents(double latitude, double longitude, double radiusMeters);
+
+    /**
+     * Paginated, filterable incident search for the SECURITY_ADMIN incidents view.
+     *
+     * @param municipalityId when non-null, restricts results to this municipality
+     * @param issueType      when non-null, restricts results to this issue type
+     * @param page           0-based page number
+     * @param size           page size
+     * @return the matching page of incidents, newest first
+     */
+    IncidentPageResponse searchIncidents(UUID municipalityId, IssueType issueType, int page, int size);
 }

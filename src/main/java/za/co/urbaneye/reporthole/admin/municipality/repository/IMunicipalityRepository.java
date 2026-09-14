@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -21,6 +22,12 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, UUI
      * @return {@code true} if a municipality with this name already exists (case-insensitive)
      */
     boolean existsByNameIgnoreCase(String name);
+
+    /**
+     * @param name candidate municipality name
+     * @return the matching municipality, case-insensitively, if one exists
+     */
+    Optional<Municipality> findByNameIgnoreCase(String name);
 
     /**
      * @return all municipalities ordered by name

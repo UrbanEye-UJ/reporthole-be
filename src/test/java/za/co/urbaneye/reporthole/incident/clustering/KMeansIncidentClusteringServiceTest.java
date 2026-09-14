@@ -50,7 +50,7 @@ class KMeansIncidentClusteringServiceTest {
 
     @Test
     void clusterIncidents_throws_whenKIsLessThanOne() {
-        assertThatThrownBy(() -> clusteringService.clusterIncidents(0, null))
+        assertThatThrownBy(() -> clusteringService.clusterIncidents(0, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -58,7 +58,7 @@ class KMeansIncidentClusteringServiceTest {
     void clusterIncidents_returnsEmpty_whenNoIncidents() {
         when(incidentRepository.findByDeletedFalse()).thenReturn(List.of());
 
-        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(3, null);
+        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(3, null, null);
 
         assertThat(clusters).isEmpty();
     }
@@ -82,7 +82,7 @@ class KMeansIncidentClusteringServiceTest {
 
         when(incidentRepository.findByDeletedFalse()).thenReturn(incidents);
 
-        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(3, null);
+        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(3, null, null);
 
         assertThat(clusters).hasSize(3);
         assertThat(clusters.stream().mapToInt(IncidentClusterDTO::size).sum()).isEqualTo(12);
@@ -109,7 +109,7 @@ class KMeansIncidentClusteringServiceTest {
         Incident crack = buildIncident(JHB, 0.001, IssueType.CRACK);
         when(incidentRepository.findByDeletedFalse()).thenReturn(List.of(pothole, crack));
 
-        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(2, IssueType.POTHOLE);
+        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(2, IssueType.POTHOLE, null);
 
         assertThat(clusters).hasSize(1);
         assertThat(clusters.getFirst().incidentIds()).containsExactly(pothole.getIncidentId());
@@ -120,10 +120,26 @@ class KMeansIncidentClusteringServiceTest {
         Incident only = buildIncident(JHB, 0.0, IssueType.POTHOLE);
         when(incidentRepository.findByDeletedFalse()).thenReturn(List.of(only));
 
-        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(5, null);
+        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(5, null, null);
 
         assertThat(clusters).hasSize(1);
         assertThat(clusters.getFirst().size()).isEqualTo(1);
         assertThat(clusters.getFirst().incidentIds()).containsExactly(only.getIncidentId());
+    }
+
+    @Test
+    void clusterIncidents_filtersByMunicipality_whenMunicipalityIdProvided() {
+        // Regression coverage for the SECURITY_ADMIN map view: picking a specific municipality
+        // must cluster only that municipality's incidents, via the dedicated repository query,
+        // not the unfiltered findByDeletedFalse() used for the "all municipalities" view.
+        UUID municipalityId = UUID.randomUUID();
+        Incident inMunicipality = buildIncident(JHB, 0.0, IssueType.POTHOLE);
+        when(incidentRepository.findByDeletedFalseAndMunicipality_Id(municipalityId))
+                .thenReturn(List.of(inMunicipality));
+
+        List<IncidentClusterDTO> clusters = clusteringService.clusterIncidents(3, null, municipalityId);
+
+        assertThat(clusters).hasSize(1);
+        assertThat(clusters.getFirst().incidentIds()).containsExactly(inMunicipality.getIncidentId());
     }
 }

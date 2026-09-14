@@ -21,7 +21,10 @@ import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 import za.co.urbaneye.reporthole.user.service.interfaces.ILoginService;
 import za.co.urbaneye.reporthole.user.service.interfaces.IUserAuthService;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Service implementation responsible for user registration
@@ -122,6 +125,15 @@ public class LoginServiceImpl implements ILoginService {
                 userAuth.setStatus(UserStatus.LOCKED);
                 authRepository.save(userAuth);
                 log.warn("User {} locked after {} failed attempts", emailHash, userAuth.getRetries());
+
+                final User lockedUser = userRepository.findById(userAuth.getAuthId())
+                        .orElseThrow(() -> new UserServiceException("User not found"));
+                auditRepository.save(AccessControlAuditEntry.builder()
+                        .action(AccessControlAction.ACCOUNT_LOCKED)
+                        .actor(lockedUser)
+                        .target(lockedUser)
+                        .build());
+
                 throw new UserServiceException("Too many failed attempts. Your account has been locked. Please reset your password.");
             }
             authRepository.save(userAuth);
@@ -143,5 +155,30 @@ public class LoginServiceImpl implements ILoginService {
                 .build());
 
         return new AuthResponse(token, found.getRole(), found.getUserId());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Actor and target are the same user, which is what distinguishes a self-service
+     * logout from a {@code SECURITY_ADMIN}'s force-logout of someone else in the audit
+     * trail — both are recorded as {@link AccessControlAction#SESSIONS_REVOKED}.</p>
+     */
+    @Override
+    public void logout(UUID userId) {
+        final UserAuth userAuth = authRepository.findById(userId)
+                .orElseThrow(() -> new UserServiceException("User not found"));
+        userAuth.setCredentialsValidFrom(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
+        authRepository.save(userAuth);
+
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserServiceException("User not found"));
+        auditRepository.save(AccessControlAuditEntry.builder()
+                .action(AccessControlAction.SESSIONS_REVOKED)
+                .actor(user)
+                .target(user)
+                .build());
+
+        log.info("User {} logged out — credentialsValidFrom bumped", userId);
     }
 }

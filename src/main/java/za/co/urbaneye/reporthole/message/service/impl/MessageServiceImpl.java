@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.message.dto.ContactMessageRequest;
 import za.co.urbaneye.reporthole.message.dto.MessageResponse;
 import za.co.urbaneye.reporthole.message.dto.SendMessageRequest;
@@ -37,17 +38,20 @@ public class MessageServiceImpl implements IMessageService {
     private final MessageRepository messageRepository;
     private final IUserRepository userRepository;
     private final IUserAuthRepository userAuthRepository;
+    private final IAuditLogService auditLogService;
 
     @Override
     @Transactional
     public void submitContact(ContactMessageRequest request) {
-        messageRepository.save(Message.builder()
+        Message saved = messageRepository.save(Message.builder()
                 .senderName(request.name())
                 .senderEmail(request.email())
                 .subject(request.subject())
                 .content(request.content())
                 .category(MessageCategory.CONTACT_US)
                 .build());
+        auditLogService.record(null, "CONTACT_FORM_SUBMITTED", "MESSAGE", saved.getId(),
+                "Public contact-form submission from " + request.email());
         log.info("Contact message stored from {}", request.email());
     }
 
@@ -59,22 +63,25 @@ public class MessageServiceImpl implements IMessageService {
         UserAuth auth = userAuthRepository.findById(senderUserId)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user auth not found"));
 
-        messageRepository.save(Message.builder()
+        Message saved = messageRepository.save(Message.builder()
                 .senderUserId(senderUserId)
                 .senderName(user.getFirstName() + " " + user.getLastName())
                 .senderEmail(auth.getEmail())
+                .senderRole(user.getRole())
                 .subject(request.subject())
                 .content(request.content())
-                .category(MessageCategory.CIVILIAN_COMPLAINT)
+                .category(MessageCategory.USER_MESSAGE)
                 .build());
+        auditLogService.record(user, "MESSAGE_SENT", "MESSAGE", saved.getId(),
+                "Sent a message to the admin team (" + user.getRole() + ")");
         log.info("Message stored from user {}", senderUserId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<MessageResponse> getCivilianComplaints() {
+    public List<MessageResponse> getUserMessages() {
         return messageRepository
-                .findByCategoryOrderByCreatedAtDesc(MessageCategory.CIVILIAN_COMPLAINT)
+                .findByCategoryOrderByCreatedAtDesc(MessageCategory.USER_MESSAGE)
                 .stream()
                 .map(MessageResponse::from)
                 .toList();

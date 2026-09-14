@@ -15,6 +15,7 @@ import za.co.urbaneye.reporthole.message.dto.SendMessageRequest;
 import za.co.urbaneye.reporthole.message.entity.MessageCategory;
 import za.co.urbaneye.reporthole.message.service.interfaces.IMessageService;
 import za.co.urbaneye.reporthole.security.Jwt;
+import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 
 import java.time.LocalDateTime;
@@ -118,15 +119,16 @@ class MessageControllerTest {
     @Test
     void getAdminMessages_returns200WithList() throws Exception {
         UUID id = UUID.randomUUID();
-        when(messageService.getCivilianComplaints()).thenReturn(List.of(
-                new MessageResponse(id, null, "Alice K.", "a***@example.com",
-                        "Complaint", "Road is broken.", MessageCategory.CIVILIAN_COMPLAINT, false, LocalDateTime.now())
+        when(messageService.getUserMessages()).thenReturn(List.of(
+                new MessageResponse(id, null, "Alice K.", "a***@example.com", UserRole.CIVILIAN,
+                        "Complaint", "Road is broken.", MessageCategory.USER_MESSAGE, false, LocalDateTime.now())
         ));
 
         mockMvc.perform(get("/messages/admin").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].senderName").value("Alice K."))
-                .andExpect(jsonPath("$.data[0].category").value("CIVILIAN_COMPLAINT"));
+                .andExpect(jsonPath("$.data[0].senderRole").value("CIVILIAN"))
+                .andExpect(jsonPath("$.data[0].category").value("USER_MESSAGE"));
     }
 
     // ── GET /messages/security-admin ──────────────────────────────────────────
@@ -135,7 +137,7 @@ class MessageControllerTest {
     void getSecurityAdminMessages_returns200WithList() throws Exception {
         UUID id = UUID.randomUUID();
         when(messageService.getContactMessages()).thenReturn(List.of(
-                new MessageResponse(id, null, "John Smith", "john@example.com",
+                new MessageResponse(id, null, "John Smith", "john@example.com", null,
                         "Hello", "Interested in your platform.", MessageCategory.CONTACT_US, false, LocalDateTime.now())
         ));
 

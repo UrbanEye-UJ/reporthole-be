@@ -18,6 +18,7 @@ import za.co.urbaneye.reporthole.admin.municipality.exception.MunicipalityExcept
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityTokenRepository;
 import za.co.urbaneye.reporthole.admin.municipality.service.impl.MunicipalityServiceImpl;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -48,6 +49,7 @@ class MunicipalityServiceImplTest {
     @Mock private IMunicipalityTokenRepository tokenRepository;
     @Mock private IUserRepository userRepository;
     @Mock private IMailService mailService;
+    @Mock private IAuditLogService auditLogService;
 
     @InjectMocks
     private MunicipalityServiceImpl service;

@@ -29,6 +29,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -324,12 +325,90 @@ class IncidentControllerTest {
                         .incidentIds(List.of(UUID.randomUUID(), UUID.randomUUID()))
                         .build();
 
-        when(incidentClusteringService.clusterIncidents(5, null)).thenReturn(List.of(cluster));
+        when(incidentClusteringService.clusterIncidents(5, null, null)).thenReturn(List.of(cluster));
 
         mockMvc.perform(get("/incidents/clusters"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].size").value(2))
                 .andExpect(jsonPath("$.data[0].clusterIndex").value(0));
+    }
+
+    @Test
+    void getIncidentClusters_passesMunicipalityIdThrough_whenProvided() throws Exception {
+        UUID municipalityId = UUID.randomUUID();
+        when(incidentClusteringService.clusterIncidents(5, null, municipalityId)).thenReturn(List.of());
+
+        mockMvc.perform(get("/incidents/clusters").param("municipalityId", municipalityId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void getRecentIncidents_passesMunicipalityIdThrough_whenProvided() throws Exception {
+        UUID municipalityId = UUID.randomUUID();
+        IncidentResponseDTO response = IncidentResponseDTO.builder()
+                .incidentId(UUID.randomUUID())
+                .incidentType(IssueType.POTHOLE)
+                .build();
+        when(incidentService.getRecentIncidents(10, municipalityId)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/incidents/recent").param("municipalityId", municipalityId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].incidentType").value("POTHOLE"));
+    }
+
+    @Test
+    void getRecentIncidents_omitsMunicipalityId_whenNotProvided() throws Exception {
+        when(incidentService.getRecentIncidents(10, null)).thenReturn(List.of());
+
+        mockMvc.perform(get("/incidents/recent"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void searchIncidents_defaultsPageZeroAndSize50() throws Exception {
+        za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse page =
+                new za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse(List.of(), 0L, 0, 50);
+        when(incidentService.searchIncidents(null, null, 0, 50)).thenReturn(page);
+
+        mockMvc.perform(get("/incidents/search"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(50));
+    }
+
+    @Test
+    void searchIncidents_passesFiltersAndPagingThrough() throws Exception {
+        UUID municipalityId = UUID.randomUUID();
+        IncidentResponseDTO response = IncidentResponseDTO.builder()
+                .incidentId(UUID.randomUUID())
+                .incidentType(IssueType.POTHOLE)
+                .build();
+        za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse page =
+                new za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse(List.of(response), 1L, 2, 25);
+        when(incidentService.searchIncidents(municipalityId, IssueType.POTHOLE, 2, 25)).thenReturn(page);
+
+        mockMvc.perform(get("/incidents/search")
+                        .param("municipalityId", municipalityId.toString())
+                        .param("type", "POTHOLE")
+                        .param("page", "2")
+                        .param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].incidentType").value("POTHOLE"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+    }
+
+    @Test
+    void searchIncidents_clampsRequestedSizeTo50() throws Exception {
+        za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse page =
+                new za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse(List.of(), 0L, 0, 50);
+        when(incidentService.searchIncidents(null, null, 0, 50)).thenReturn(page);
+
+        mockMvc.perform(get("/incidents/search").param("size", "500"))
+                .andExpect(status().isOk());
+
+        verify(incidentService).searchIncidents(null, null, 0, 50);
     }
 
     @Test

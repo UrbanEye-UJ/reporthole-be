@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.entity.DashcamDevice;
 import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
@@ -38,6 +39,9 @@ class DeviceServiceImplTest {
 
     @Mock
     private IUserRepository userRepository;
+
+    @Mock
+    private IAuditLogService auditLogService;
 
     @InjectMocks
     private DeviceServiceImpl deviceService;

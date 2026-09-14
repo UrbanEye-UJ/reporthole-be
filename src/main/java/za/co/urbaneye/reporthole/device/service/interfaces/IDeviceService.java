@@ -2,6 +2,8 @@ package za.co.urbaneye.reporthole.device.service.interfaces;
 
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 
+import java.util.UUID;
+
 /**
  * Service interface for dashcam device management.
  *
@@ -25,4 +27,15 @@ public interface IDeviceService {
      * @return a response containing the newly generated token
      */
     DeviceTokenResponse generateToken(String userId);
+
+    /**
+     * Revokes (permanently deletes) a device token, so a lost or leaked
+     * dashcam device can no longer authenticate.
+     *
+     * @param userId  the UUID string of the authenticated user making the request
+     * @param tokenId the id of the {@code DashcamDevice} row to revoke
+     * @throws za.co.urbaneye.reporthole.device.exception.DeviceServiceException
+     *         if the token doesn't exist or doesn't belong to {@code userId}
+     */
+    void revokeToken(String userId, UUID tokenId);
 }

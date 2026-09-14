@@ -20,6 +20,7 @@ import za.co.urbaneye.reporthole.admin.application.service.impl.AdminApplication
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
@@ -48,6 +49,7 @@ class AdminApplicationServiceImplTest {
     @Mock private IUserRepository userRepository;
     @Mock private IUserAuthRepository userAuthRepository;
     @Mock private IAccessControlAuditRepository auditRepository;
+    @Mock private IAuditLogService auditLogService;
     @Mock private IMailService mailService;
 
     @InjectMocks

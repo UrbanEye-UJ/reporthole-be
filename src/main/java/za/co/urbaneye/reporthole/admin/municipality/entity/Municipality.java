@@ -12,9 +12,11 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.locationtech.jts.geom.MultiPolygon;
 import za.co.urbaneye.reporthole.user.entity.User;
 
 import java.time.LocalDateTime;
@@ -41,6 +43,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/*
+ * Equality is by id only: without this, two JPA-loaded instances of the same municipality
+ * row compare unequal (Object identity), which silently broke the municipality-boundary
+ * checks in IncidentServiceImpl.assignIncident — every cross-entity comparison failed even
+ * when both sides pointed at the same municipality.
+ */
+@EqualsAndHashCode(of = "id")
 public class Municipality {
 
     /**
@@ -77,6 +86,15 @@ public class Municipality {
      */
     @Column(name = "MUNICIPALITY_CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Real administrative boundary polygon, sourced from Municipal Demarcation Board data and
+     * seeded by {@link za.co.urbaneye.reporthole.config.BootstrapMunicipalityInitializer}.
+     * Nullable — municipalities created without a matching boundary source (e.g. outside
+     * Gauteng, or created ad hoc via the security-admin UI) simply have no overlay to draw.
+     */
+    @Column(name = "MUNICIPALITY_BOUNDARY", columnDefinition = "geometry(MultiPolygon,4326)")
+    private MultiPolygon boundary;
 
     /**
      * Stamps {@link #createdAt} before the first persist.
