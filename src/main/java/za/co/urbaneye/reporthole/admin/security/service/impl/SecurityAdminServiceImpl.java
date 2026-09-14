@@ -3,16 +3,19 @@ package za.co.urbaneye.reporthole.admin.security.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import za.co.urbaneye.reporthole.admin.security.dto.AuditEntryResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.GrantRoleRequest;
+import za.co.urbaneye.reporthole.admin.security.dto.RevealAccountResponse;
 import za.co.urbaneye.reporthole.admin.security.dto.SecurityUserResponse;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.ISecurityAdminService;
+import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -48,6 +51,7 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
     private final IUserRepository userRepository;
     private final IUserAuthRepository userAuthRepository;
     private final IAccessControlAuditRepository auditRepository;
+    private final PasswordEncoder encoder;
 
     @Override
     @Transactional
@@ -159,8 +163,8 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
                     UserAuth auth = authById.get(user.getUserId());
                     return new SecurityUserResponse(
                             user.getUserId(),
-                            (user.getFirstName() + " " + user.getLastName()).trim(),
-                            auth != null ? auth.getEmail() : null,
+                            SecretUtil.maskName(user.getFirstName(), user.getLastName()),
+                            auth != null ? SecretUtil.maskEmail(auth.getEmail()) : null,
                             user.getRole(),
                             auth != null ? auth.getStatus() : null,
                             user.getCreatedAt());
@@ -170,6 +174,29 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
                     return b.createdAt().compareTo(a.createdAt());
                 })
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public RevealAccountResponse revealAccount(UUID targetUserId, String password) {
+        User actor = requireSecurityAdmin();
+
+        UserAuth actorAuth = userAuthRepository.findById(actor.getUserId())
+                .orElseThrow(() -> new SecurityAdminException("User not found"));
+        if (!encoder.matches(password, actorAuth.getPassword())) {
+            throw new SecurityAdminException("Incorrect password");
+        }
+
+        User target = loadTarget(targetUserId);
+        UserAuth targetAuth = loadAuth(targetUserId);
+
+        writeAudit(AccessControlAction.PII_REVEALED, actor, target, null, null,
+                "Viewed decrypted name and email");
+        log.info("SECURITY_ADMIN {} revealed PII for account {}", actor.getUserId(), targetUserId);
+
+        return new RevealAccountResponse(
+                (target.getFirstName() + " " + target.getLastName()).trim(),
+                targetAuth.getEmail());
     }
 
     @Override

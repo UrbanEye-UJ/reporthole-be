@@ -6,11 +6,14 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
+import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentStatsDTO;
@@ -227,11 +230,17 @@ public class IncidentServiceImpl implements IncidentService {
     }
 
     @Override
-    public List<IncidentResponseDTO> getRecentIncidents(int limit) {
-        Municipality municipality = resolveAdminMunicipality();
-        List<Incident> incidents = municipality != null
-                ? incidentRepository.findForAdmin(municipality, PageRequest.of(0, limit))
-                : incidentRepository.findByDeletedFalseOrderByIncidentDateDesc(PageRequest.of(0, limit));
+    public List<IncidentResponseDTO> getRecentIncidents(int limit, UUID municipalityId) {
+        List<Incident> incidents;
+        if (municipalityId != null) {
+            incidents = incidentRepository.findByDeletedFalseAndMunicipality_IdOrderByIncidentDateDesc(
+                    municipalityId, PageRequest.of(0, limit));
+        } else {
+            Municipality municipality = resolveAdminMunicipality();
+            incidents = municipality != null
+                    ? incidentRepository.findForAdmin(municipality, PageRequest.of(0, limit))
+                    : incidentRepository.findByDeletedFalseOrderByIncidentDateDesc(PageRequest.of(0, limit));
+        }
         return incidents.stream()
                 .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
                 .toList();
@@ -260,25 +269,7 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO getIncidentById(UUID incidentId) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new RuntimeException("Incident not found: " + incidentId));
-        int reporterCount = incidentReporterRepository.countByIncident_IncidentId(incidentId);
-        return IncidentResponseDTO.builder()
-                .incidentId(incident.getIncidentId())
-                .incidentType(incident.getIncidentType())
-                .description(incident.getDescription())
-                .source(incident.getSource())
-                .incidentDate(incident.getIncidentDate())
-                .latitude(incident.getLocation().getY())
-                .longitude(incident.getLocation().getX())
-                .imageUrl(incident.getImageUrl())
-                .locationAddress(incident.getLocationAddress())
-                .userId(incident.getUser().getUserId())
-                .reportCount(incident.getReportCount())
-                .reporterCount(reporterCount)
-                .duplicate(false)
-                .status(resolveStatus(incidentId))
-                .aiGenerated(incident.isAiGenerated())
-                .aiConfidence(incident.getAiConfidence())
-                .build();
+        return toResponseDTO(incident, incident.getUser().getUserId());
     }
 
     @Override
@@ -367,8 +358,17 @@ public class IncidentServiceImpl implements IncidentService {
         }
 
         // Tag the incident to the verifying admin's municipality — it becomes their work item.
+        // Enforced spatially where boundary data exists: an admin cannot claim an incident that
+        // was actually reported outside their own municipality's real boundary. Municipalities
+        // without boundary data on file (boundary == null) fall open — there's no ground truth
+        // to check against, so tagging proceeds unchecked as before.
         if (admin.getMunicipality() != null) {
-            incident.setMunicipality(admin.getMunicipality());
+            Municipality municipality = admin.getMunicipality();
+            if (municipality.getBoundary() != null && !municipality.getBoundary().contains(incident.getLocation())) {
+                throw new AssignmentException(
+                        "Incident location falls outside " + municipality.getName() + "'s boundary");
+            }
+            incident.setMunicipality(municipality);
             incidentRepository.save(incident);
         }
 
@@ -620,6 +620,16 @@ public class IncidentServiceImpl implements IncidentService {
         return incidentRepository.findNearby(latitude, longitude, radiusMeters).stream()
                 .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
                 .toList();
+    }
+
+    @Override
+    public IncidentPageResponse searchIncidents(UUID municipalityId, IssueType issueType, int page, int size) {
+        Page<Incident> result = incidentRepository.search(
+                municipalityId, issueType, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "incidentDate")));
+        List<IncidentResponseDTO> content = result.getContent().stream()
+                .map(incident -> toResponseDTO(incident, incident.getUser().getUserId()))
+                .toList();
+        return new IncidentPageResponse(content, result.getTotalElements(), page, size);
     }
 
     private IncidentResponseDTO toResponseDTO(Incident incident, UUID userId) {

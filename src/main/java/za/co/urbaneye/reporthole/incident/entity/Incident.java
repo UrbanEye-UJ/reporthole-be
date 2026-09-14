@@ -88,6 +88,9 @@ public class Incident {
      * Municipality responsible for this incident. Null until an admin verifies it — at that point
      * the incident is tagged to the verifying admin's municipality and becomes their work item.
      * Unverified (null) incidents are visible to all admins so any municipality can claim them.
+     * Verification is rejected if {@link #location} falls outside the verifying admin's own
+     * municipality's real boundary polygon, where that municipality has boundary data on file
+     * (see {@code IncidentServiceImpl#verifyIncident}).
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_MUNICIPALITY_ID")

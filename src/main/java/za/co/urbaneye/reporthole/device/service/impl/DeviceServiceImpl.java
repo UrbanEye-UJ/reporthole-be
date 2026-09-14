@@ -2,6 +2,7 @@ package za.co.urbaneye.reporthole.device.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.entity.DashcamDevice;
 import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
@@ -31,6 +32,7 @@ public class DeviceServiceImpl implements IDeviceService {
 
     private final DashcamDeviceRepository deviceRepository;
     private final IUserRepository userAuthRepository;
+    private final IAuditLogService auditLogService;
 
     /**
      * Generates a new device token for the currently authenticated user.
@@ -61,6 +63,35 @@ public class DeviceServiceImpl implements IDeviceService {
 
         deviceRepository.save(device);
 
+        auditLogService.record(user, "DEVICE_TOKEN_GENERATED", "DEVICE_TOKEN", device.getDeviceId(),
+                "Generated a dashcam device token");
+
         return new DeviceTokenResponse(token);
+    }
+
+    /**
+     * Revokes a device token by deleting its {@code DashcamDevice} row.
+     *
+     * <p>Verifies ownership first — a user may only revoke their own
+     * device tokens — before deleting.</p>
+     *
+     * @param userId  UUID string of the authenticated user making the request
+     * @param tokenId the {@code DashcamDevice} row id to revoke
+     * @throws DeviceServiceException if the token doesn't exist or belongs to another user
+     */
+    @Override
+    public void revokeToken(String userId, UUID tokenId) {
+        DashcamDevice device = deviceRepository.findById(tokenId)
+                .orElseThrow(() -> new DeviceServiceException("Device token not found: " + tokenId));
+
+        if (!device.getUser().getUserId().equals(UUID.fromString(userId))) {
+            throw new DeviceServiceException("Device token does not belong to the authenticated user");
+        }
+
+        User owner = device.getUser();
+        deviceRepository.delete(device);
+
+        auditLogService.record(owner, "DEVICE_TOKEN_REVOKED", "DEVICE_TOKEN", tokenId,
+                "Revoked a dashcam device token");
     }
 }

@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
 import za.co.urbaneye.reporthole.security.SecretUtil;
+import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserStatus;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
@@ -35,6 +37,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
     private final IUserRepository userRepository;
     private final PasswordEncoder encoder;
     private final IMailService mailService;
+    private final IAuditLogService auditLogService;
 
     @Value("${mail.password-reset-url}")
     private String passwordResetBaseUrl;
@@ -57,12 +60,14 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
         userAuth.setPasswordResetTokenExpiresAt(LocalDateTime.now().plusHours(1));
         authRepository.save(userAuth);
 
-        final String firstName = userRepository.findById(userAuth.getAuthId())
-                .map(u -> u.getFirstName())
-                .orElse("there");
+        final User user = userRepository.findById(userAuth.getAuthId()).orElse(null);
+        final String firstName = user != null ? user.getFirstName() : "there";
 
         final String resetUrl = passwordResetBaseUrl + userAuth.getPasswordResetToken();
         mailService.sendPasswordResetEmail(userAuth.getEmail(), firstName, resetUrl);
+
+        auditLogService.record(user, "PASSWORD_RESET_REQUESTED", "USER", userAuth.getAuthId(),
+                "Password reset link requested");
 
         log.info("Password reset link issued for user {}", userAuth.getAuthId());
     }
@@ -92,6 +97,10 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
         userAuth.setPasswordResetToken(null);
         userAuth.setPasswordResetTokenExpiresAt(null);
         authRepository.save(userAuth);
+
+        final User user = userRepository.findById(userAuth.getAuthId()).orElse(null);
+        auditLogService.record(user, "PASSWORD_RESET_COMPLETED", "USER", userAuth.getAuthId(),
+                "Password reset completed via emailed token");
 
         log.info("Password reset successfully for user {}", userAuth.getAuthId());
     }

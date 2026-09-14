@@ -13,6 +13,7 @@ import java.util.UUID;
  * @param province   province
  * @param tokenCount how many tokens have ever been issued for this municipality
  * @param createdAt  when it was created
+ * @param boundary   GeoJSON-shaped administrative boundary, or {@code null} if none is on file yet
  * @author Refentse
  * @since 1.0
  */
@@ -21,7 +22,8 @@ public record MunicipalityResponse(
         String name,
         String province,
         long tokenCount,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        MunicipalityBoundaryResponse boundary
 ) {
     /**
      * @param m          the entity
@@ -29,6 +31,7 @@ public record MunicipalityResponse(
      * @return the DTO view
      */
     public static MunicipalityResponse from(Municipality m, long tokenCount) {
-        return new MunicipalityResponse(m.getId(), m.getName(), m.getProvince(), tokenCount, m.getCreatedAt());
+        return new MunicipalityResponse(m.getId(), m.getName(), m.getProvince(), tokenCount, m.getCreatedAt(),
+                MunicipalityBoundaryResponse.from(m.getBoundary()));
     }
 }

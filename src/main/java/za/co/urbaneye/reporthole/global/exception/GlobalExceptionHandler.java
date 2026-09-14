@@ -10,6 +10,7 @@ import za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationExc
 import za.co.urbaneye.reporthole.admin.contractor.exception.ContractorException;
 import za.co.urbaneye.reporthole.admin.municipality.exception.MunicipalityException;
 import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
+import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
 import za.co.urbaneye.reporthole.global.entity.ErrorObject;
 import za.co.urbaneye.reporthole.incident.exception.AssignmentException;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
@@ -171,6 +172,7 @@ public class GlobalExceptionHandler {
      * <ul>
      *     <li>404 Not Found — caller or target account missing</li>
      *     <li>403 Forbidden — caller is not a security admin</li>
+     *     <li>401 Unauthorized — incorrect password on a reveal-PII step-up check</li>
      *     <li>400 Bad Request — caller attempted to act on their own account</li>
      *     <li>409 Conflict — account already in the requested state (already has the role,
      *         already suspended, not suspended, nothing to revoke)</li>
@@ -188,6 +190,8 @@ public class GlobalExceptionHandler {
             status = HttpStatus.NOT_FOUND;
         } else if (msg.contains("Only security admins")) {
             status = HttpStatus.FORBIDDEN;
+        } else if (msg.contains("Incorrect password")) {
+            status = HttpStatus.UNAUTHORIZED;
         } else if (msg.contains("cannot")) {
             status = HttpStatus.BAD_REQUEST;
         } else {
@@ -252,6 +256,35 @@ public class GlobalExceptionHandler {
         if (msg.contains("not found")) {
             status = HttpStatus.NOT_FOUND;
         } else if (msg.contains("Only admins")) {
+            status = HttpStatus.FORBIDDEN;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles dashcam device-management business rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — user or device token missing</li>
+     *     <li>403 Forbidden — device token belongs to another user</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link DeviceServiceException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(DeviceServiceException.class)
+    public ResponseEntity<ErrorObject> handleDeviceServiceException(DeviceServiceException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("does not belong")) {
             status = HttpStatus.FORBIDDEN;
         } else {
             status = HttpStatus.BAD_REQUEST;

@@ -83,4 +83,27 @@ public class SecretUtil {
         String visible = localPart.length() <= 1 ? localPart : localPart.substring(0, 1);
         return visible + "***" + domain;
     }
+
+    /**
+     * Masks a person's name for display to other users, e.g. {@code "Jane D."}.
+     *
+     * <p>Keeps the first name and the last name's initial only — used anywhere a civilian's
+     * identity is shown to someone other than themselves (admin directories, incident
+     * comment threads) so the full name is never exposed outside an explicit "reveal" flow.</p>
+     *
+     * @param firstName decrypted first name
+     * @param lastName  decrypted last name
+     * @return masked display name, or {@code "—"} if both inputs are blank
+     */
+    public static String maskName(String firstName, String lastName) {
+        String first = firstName != null ? firstName.trim() : "";
+        String last = lastName != null ? lastName.trim() : "";
+        if (first.isEmpty() && last.isEmpty()) {
+            return "—";
+        }
+        if (last.isEmpty()) {
+            return first;
+        }
+        return first + " " + last.charAt(0) + ".";
+    }
 }

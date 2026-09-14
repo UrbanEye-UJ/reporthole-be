@@ -14,6 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import za.co.urbaneye.reporthole.user.entity.UserRole;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -52,6 +53,15 @@ public class Message {
      */
     @Column(name = "MSG_SENDER_USER_ID")
     private UUID senderUserId;
+
+    /**
+     * The sender's role at the time of sending (CIVILIAN, CONTRACTOR, or ADMIN) — null for
+     * anonymous contact-form submissions, where there is no account at all. Lets the recipient
+     * see who is actually messaging them instead of assuming every message is from a civilian.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "MSG_SENDER_ROLE")
+    private UserRole senderRole;
 
     /**
      * Display name of the sender as submitted (may be a masked name for authenticated users

@@ -14,6 +14,7 @@ import za.co.urbaneye.reporthole.admin.security.dto.GrantRoleRequest;
 import za.co.urbaneye.reporthole.admin.security.dto.SecurityUserResponse;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.ISecurityAdminService;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
@@ -50,6 +51,9 @@ class SecurityAdminControllerTest {
 
     @MockitoBean
     private ISecurityAdminService securityAdminService;
+
+    @MockitoBean
+    private IAuditLogService auditLogService;
 
     @MockitoBean
     private Jwt jwt;
@@ -202,5 +206,22 @@ class SecurityAdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].action").value("ROLE_GRANTED"))
                 .andExpect(jsonPath("$.data[0].toValue").value("ADMIN"));
+    }
+
+    @Test
+    @WithMockUser(roles = "SECURITY_ADMIN")
+    void listAuditLog_returnsGeneralLog() throws Exception {
+        za.co.urbaneye.reporthole.admin.security.dto.AuditLogEntryResponse entry =
+                new za.co.urbaneye.reporthole.admin.security.dto.AuditLogEntryResponse(
+                        UUID.randomUUID(), "MUNICIPALITY_CREATED",
+                        UUID.randomUUID(), "Sam Secure",
+                        "MUNICIPALITY", UUID.randomUUID(),
+                        "Created municipality \"City of Tshwane\"", LocalDateTime.now());
+        when(auditLogService.listAll()).thenReturn(List.of(entry));
+
+        mockMvc.perform(get("/admin/security/audit-log"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].action").value("MUNICIPALITY_CREATED"))
+                .andExpect(jsonPath("$.data[0].entityType").value("MUNICIPALITY"));
     }
 }

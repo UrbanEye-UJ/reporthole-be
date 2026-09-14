@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.message.dto.ContactMessageRequest;
 import za.co.urbaneye.reporthole.message.dto.MessageResponse;
 import za.co.urbaneye.reporthole.message.dto.SendMessageRequest;
@@ -15,6 +16,7 @@ import za.co.urbaneye.reporthole.message.repository.MessageRepository;
 import za.co.urbaneye.reporthole.message.service.impl.MessageServiceImpl;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
+import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
@@ -38,6 +40,7 @@ class MessageServiceImplTest {
     @Mock private MessageRepository messageRepository;
     @Mock private IUserRepository userRepository;
     @Mock private IUserAuthRepository userAuthRepository;
+    @Mock private IAuditLogService auditLogService;
 
     @InjectMocks
     private MessageServiceImpl service;
@@ -67,9 +70,10 @@ class MessageServiceImplTest {
     // ── sendMessage ───────────────────────────────────────────────────────────
 
     @Test
-    void sendMessage_resolvesUserDetails_savesCivilianComplaint() {
+    void sendMessage_resolvesUserDetails_savesUserMessageWithSenderRole() {
         UUID userId = UUID.randomUUID();
-        User user = User.builder().userId(userId).firstName("Jane").lastName("Doe").build();
+        User user = User.builder().userId(userId).firstName("Jane").lastName("Doe")
+                .role(UserRole.CONTRACTOR).build();
         UserAuth auth = UserAuth.builder().authId(userId).email("jane@doe.com").build();
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
@@ -86,9 +90,12 @@ class MessageServiceImplTest {
         assertThat(saved.getSenderUserId()).isEqualTo(userId);
         assertThat(saved.getSenderName()).isEqualTo("Jane Doe");
         assertThat(saved.getSenderEmail()).isEqualTo("jane@doe.com");
+        // Regression: any role can send a message, and the sender's actual role is recorded —
+        // not just civilians, and not silently dropped.
+        assertThat(saved.getSenderRole()).isEqualTo(UserRole.CONTRACTOR);
         assertThat(saved.getSubject()).isEqualTo("Feedback");
         assertThat(saved.getContent()).isEqualTo("This road is terrible.");
-        assertThat(saved.getCategory()).isEqualTo(MessageCategory.CIVILIAN_COMPLAINT);
+        assertThat(saved.getCategory()).isEqualTo(MessageCategory.USER_MESSAGE);
     }
 
     @Test
@@ -115,26 +122,28 @@ class MessageServiceImplTest {
                 .hasMessageContaining("Authenticated user auth not found");
     }
 
-    // ── getCivilianComplaints ─────────────────────────────────────────────────
+    // ── getUserMessages ────────────────────────────────────────────────────────
 
     @Test
-    void getCivilianComplaints_delegatesToRepoAndMapsToDto() {
+    void getUserMessages_delegatesToRepoAndMapsToDto() {
         UUID id = UUID.randomUUID();
         Message msg = Message.builder()
                 .id(id).senderName("Alice K.").senderEmail("a***@example.com")
+                .senderRole(UserRole.CIVILIAN)
                 .subject("Road issue").content("Pothole on Main St.")
-                .category(MessageCategory.CIVILIAN_COMPLAINT)
+                .category(MessageCategory.USER_MESSAGE)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        when(messageRepository.findByCategoryOrderByCreatedAtDesc(MessageCategory.CIVILIAN_COMPLAINT))
+        when(messageRepository.findByCategoryOrderByCreatedAtDesc(MessageCategory.USER_MESSAGE))
                 .thenReturn(List.of(msg));
 
-        List<MessageResponse> result = service.getCivilianComplaints();
+        List<MessageResponse> result = service.getUserMessages();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(id);
-        assertThat(result.get(0).category()).isEqualTo(MessageCategory.CIVILIAN_COMPLAINT);
+        assertThat(result.get(0).senderRole()).isEqualTo(UserRole.CIVILIAN);
+        assertThat(result.get(0).category()).isEqualTo(MessageCategory.USER_MESSAGE);
     }
 
     // ── getContactMessages ────────────────────────────────────────────────────
