@@ -2,16 +2,19 @@ package za.co.urbaneye.reporthole.incident.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
+import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
 import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
@@ -50,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class IncidentServiceImpl implements IncidentService {
@@ -65,6 +69,7 @@ public class IncidentServiceImpl implements IncidentService {
     private final IMailService mailService;
     private final INotificationService notificationService;
     private final IncidentProperties incidentProperties;
+    private final IMunicipalityRepository municipalityRepository;
 
     private static final double MANUAL_DUPLICATE_RADIUS_METRES = 1_000.0;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
@@ -123,6 +128,15 @@ public class IncidentServiceImpl implements IncidentService {
         if (request.confidence() != null) {
             incident.setAiGenerated(true);
             incident.setAiConfidence(request.confidence());
+        }
+        try {
+            municipalityRepository.findContainingPoint(request.latitude(), request.longitude())
+                    .ifPresent(incident::setMunicipality);
+        } catch (DataAccessException ex) {
+            // Spatial containment isn't available in every environment (e.g. H2 in tests, which
+            // has no PostGIS functions) — fall back to unassigned, same as "no containing
+            // municipality found". Verification still re-tags and spatially re-validates later.
+            log.debug("Municipality auto-assignment skipped: {}", ex.getMessage());
         }
         final Incident saved = incidentRepository.save(incident);
         incidentReporterRepository.save(new IncidentReporter(saved, user));

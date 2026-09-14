@@ -106,4 +106,27 @@ public class SecretUtil {
         }
         return first + " " + last.charAt(0) + ".";
     }
+
+    /**
+     * Masks a phone number for display, e.g. {@code "0821***890"}.
+     *
+     * <p>Keeps the first three and last three digits, replacing the middle with {@code ***} —
+     * used anywhere a phone number is shown to someone other than its owner, so it's never
+     * exposed outside an explicit "reveal" flow.</p>
+     *
+     * @param phone the phone number to mask
+     * @return the masked phone number, or {@code "—"} for null/blank input
+     */
+    public static String maskPhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return "—";
+        }
+        String trimmed = phone.trim();
+        if (trimmed.length() <= 6) {
+            return "*".repeat(trimmed.length());
+        }
+        String start = trimmed.substring(0, 3);
+        String end = trimmed.substring(trimmed.length() - 3);
+        return start + "***" + end;
+    }
 }

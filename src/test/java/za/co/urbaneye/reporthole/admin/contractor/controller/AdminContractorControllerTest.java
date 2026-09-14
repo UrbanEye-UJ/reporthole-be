@@ -134,13 +134,14 @@ class AdminContractorControllerTest {
     void revealEmail_correctPassword_returns200WithFullEmail() throws Exception {
         UUID id = UUID.randomUUID();
         when(contractorService.revealEmail(eq(id), any()))
-                .thenReturn(new RevealEmailResponse("con.tractor@example.com"));
+                .thenReturn(new RevealEmailResponse("con.tractor@example.com", "0821234567"));
 
         mockMvc.perform(post("/admin/contractors/" + id + "/reveal-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RevealEmailRequest("correct-password"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.email").value("con.tractor@example.com"));
+                .andExpect(jsonPath("$.data.email").value("con.tractor@example.com"))
+                .andExpect(jsonPath("$.data.phoneNumber").value("0821234567"));
     }
 
     @Test

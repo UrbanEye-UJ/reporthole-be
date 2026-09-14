@@ -6,7 +6,7 @@ spring:
     password: ${POSTGRES_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
     properties:
@@ -37,7 +37,7 @@ app:
   bootstrap-municipalities:
     enabled: true
   test-data:
-    enabled: true
+    enabled: false
     civilian-email: civilian@reporthole-test.local
     civilian-password: Test@k6Civilian1
     admin-email: admin@reporthole-test.local

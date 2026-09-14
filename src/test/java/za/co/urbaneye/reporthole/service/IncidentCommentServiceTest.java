@@ -14,8 +14,10 @@ import za.co.urbaneye.reporthole.incident.dto.IncidentCommentResponse;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IncidentComment;
 import za.co.urbaneye.reporthole.incident.repository.IncidentCommentRepository;
+import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.repository.IncidentRepository;
 import za.co.urbaneye.reporthole.incident.service.impl.IncidentCommentServiceImpl;
+import za.co.urbaneye.reporthole.incident.service.impl.IncidentSseService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
@@ -23,6 +25,7 @@ import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +39,8 @@ class IncidentCommentServiceTest {
     @Mock private IncidentRepository incidentRepository;
     @Mock private IUserRepository userRepository;
     @Mock private IAuditLogService auditLogService;
+    @Mock private IncidentReporterRepository incidentReporterRepository;
+    @Mock private IncidentSseService incidentSseService;
     @Mock private SecurityContext securityContext;
     @Mock private Authentication authentication;
 
@@ -97,12 +102,16 @@ class IncidentCommentServiceTest {
                 .build();
         when(commentRepository.save(any())).thenReturn(saved);
 
+        when(incidentReporterRepository.findUserIdsByIncidentId(incidentId)).thenReturn(List.of(userId));
+
         IncidentCommentResponse result = commentService.addComment(incidentId, "Fixed now");
 
         assertThat(result.content()).isEqualTo("Fixed now");
         // Comments are visible to any authenticated user, so a civilian author's name is masked.
         assertThat(result.authorName()).isEqualTo("Jane D.");
         verify(commentRepository).save(any(IncidentComment.class));
+        // A new comment should reach anyone with the incident open, the same as a status change.
+        verify(incidentSseService).pushIncidentUpdate(eq(incidentId), eq(Set.of(userId)));
     }
 
     @Test

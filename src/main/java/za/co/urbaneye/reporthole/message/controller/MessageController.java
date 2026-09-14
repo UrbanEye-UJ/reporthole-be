@@ -31,7 +31,7 @@ import java.util.UUID;
  *     <li>{@code POST /messages/contact} — public, no JWT required (landing-page contact form)</li>
  *     <li>{@code POST /messages} — any authenticated user (civilian, contractor, or admin)
  *         sends a message to the admin team</li>
- *     <li>{@code GET /messages/admin} — ADMIN or SECURITY_ADMIN reads messages from any user</li>
+ *     <li>{@code GET /messages/admin} — SECURITY_ADMIN reads messages from any user</li>
  *     <li>{@code GET /messages/security-admin} — SECURITY_ADMIN only reads contact-us submissions</li>
  * </ul>
  *
@@ -84,16 +84,17 @@ public class MessageController {
     }
 
     @GetMapping("/admin")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SECURITY_ADMIN')")
+    @PreAuthorize("hasRole('SECURITY_ADMIN')")
     @Operation(
             summary = "List messages from users",
             description = "Returns all USER_MESSAGE entries, newest first — sent by any authenticated user " +
-                    "(civilian, contractor, or admin), not civilians alone. ADMIN or SECURITY_ADMIN."
+                    "(civilian, contractor, or admin), not civilians alone. SECURITY_ADMIN only — these " +
+                    "aren't scoped to any municipality, so a municipal ADMIN has no reason to read them."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Messages returned"),
             @ApiResponse(responseCode = "401", description = "Unauthenticated"),
-            @ApiResponse(responseCode = "403", description = "Insufficient role")
+            @ApiResponse(responseCode = "403", description = "Caller is not a security admin")
     })
     public ResponseEntity<AppResponse<List<MessageResponse>>> getAdminMessages() {
         return ResponseEntity.ok(AppResponse.ok(messageService.getUserMessages()));

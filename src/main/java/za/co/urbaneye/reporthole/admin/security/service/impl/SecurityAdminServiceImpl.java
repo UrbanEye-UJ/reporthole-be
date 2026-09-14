@@ -15,6 +15,8 @@ import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.ISecurityAdminService;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
+import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.security.SecretUtil;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
@@ -51,6 +53,7 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
     private final IUserRepository userRepository;
     private final IUserAuthRepository userAuthRepository;
     private final IAccessControlAuditRepository auditRepository;
+    private final IMunicipalityRepository municipalityRepository;
     private final PasswordEncoder encoder;
 
     @Override
@@ -63,6 +66,15 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
         UserRole previous = target.getRole();
         if (previous == request.role()) {
             throw new SecurityAdminException("Account already has role " + request.role());
+        }
+
+        if (request.role() == UserRole.ADMIN) {
+            if (request.municipalityId() == null) {
+                throw new SecurityAdminException("A municipality is required to grant the ADMIN role");
+            }
+            Municipality municipality = municipalityRepository.findById(request.municipalityId())
+                    .orElseThrow(() -> new SecurityAdminException("Municipality not found"));
+            target.setMunicipality(municipality);
         }
 
         target.setRole(request.role());
