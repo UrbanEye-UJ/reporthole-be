@@ -56,7 +56,8 @@ public class AdminContractorController {
     @Operation(
             summary = "List contractors",
             description = "Returns all CONTRACTOR accounts with their active-job counts. Admin only. " +
-                    "Emails are masked (e.g. \"jo***@example.com\") — use POST /{id}/reveal-email to view one in full."
+                    "Emails and phone numbers are masked (e.g. \"jo***@example.com\", \"082***890\") — " +
+                    "use POST /{id}/reveal-email to view them in full."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Contractors returned"),
@@ -68,12 +69,12 @@ public class AdminContractorController {
 
     @PostMapping("/{id}/reveal-email")
     @Operation(
-            summary = "Reveal a contractor's email",
-            description = "Returns the contractor's decrypted email after verifying the calling admin's own " +
-                    "current password as a step-up re-authentication check. Admin only."
+            summary = "Reveal a contractor's email and phone number",
+            description = "Returns the contractor's decrypted email and phone number after verifying the " +
+                    "calling admin's own current password as a step-up re-authentication check. Admin only."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Email revealed"),
+            @ApiResponse(responseCode = "200", description = "Email and phone number revealed"),
             @ApiResponse(responseCode = "401", description = "Incorrect password"),
             @ApiResponse(responseCode = "403", description = "Caller is not an admin"),
             @ApiResponse(responseCode = "404", description = "Contractor not found")

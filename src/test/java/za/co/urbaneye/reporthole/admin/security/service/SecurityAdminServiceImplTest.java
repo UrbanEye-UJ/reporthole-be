@@ -17,6 +17,8 @@ import za.co.urbaneye.reporthole.admin.security.dto.RevealAccountResponse;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAction;
 import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException;
+import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
+import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.admin.security.service.impl.SecurityAdminServiceImpl;
 import za.co.urbaneye.reporthole.user.entity.User;
@@ -47,6 +49,7 @@ class SecurityAdminServiceImplTest {
     @Mock private IUserRepository userRepository;
     @Mock private IUserAuthRepository userAuthRepository;
     @Mock private IAccessControlAuditRepository auditRepository;
+    @Mock private IMunicipalityRepository municipalityRepository;
     @Mock private PasswordEncoder encoder;
 
     @InjectMocks
@@ -54,6 +57,7 @@ class SecurityAdminServiceImplTest {
 
     private static final UUID CALLER_ID = UUID.randomUUID();
     private static final UUID TARGET_ID = UUID.randomUUID();
+    private static final UUID MUNICIPALITY_ID = UUID.randomUUID();
 
     @BeforeEach
     void mockSecurityContext() {
@@ -87,8 +91,10 @@ class SecurityAdminServiceImplTest {
         when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(securityAdminCaller()));
         when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(target));
         when(userAuthRepository.findById(TARGET_ID)).thenReturn(Optional.of(auth));
+        Municipality municipality = Municipality.builder().id(MUNICIPALITY_ID).name("City of Johannesburg Metropolitan").build();
+        when(municipalityRepository.findById(MUNICIPALITY_ID)).thenReturn(Optional.of(municipality));
 
-        service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, "promoting for Q3 rollout"));
+        service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, MUNICIPALITY_ID, "promoting for Q3 rollout"));
 
         assertThat(target.getRole()).isEqualTo(UserRole.ADMIN);
         verify(userRepository).save(target);
@@ -117,7 +123,7 @@ class SecurityAdminServiceImplTest {
         when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(target));
         when(userAuthRepository.findById(TARGET_ID)).thenReturn(Optional.of(auth));
 
-        service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.SECURITY_ADMIN, "onboarding a second security admin"));
+        service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.SECURITY_ADMIN, null, "onboarding a second security admin"));
 
         assertThat(target.getRole()).isEqualTo(UserRole.SECURITY_ADMIN);
         assertThat(auth.getCredentialsValidFrom()).isNotNull();
@@ -135,7 +141,7 @@ class SecurityAdminServiceImplTest {
         when(userRepository.findById(CALLER_ID))
                 .thenReturn(Optional.of(User.builder().userId(CALLER_ID).role(UserRole.ADMIN).build()));
 
-        assertThatThrownBy(() -> service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, "why")))
+        assertThatThrownBy(() -> service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, null, "why")))
                 .isInstanceOf(SecurityAdminException.class)
                 .hasMessageContaining("Only security admins");
 
@@ -147,7 +153,7 @@ class SecurityAdminServiceImplTest {
     void grantRole_selfTarget_throwsBadRequest() {
         when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(securityAdminCaller()));
 
-        assertThatThrownBy(() -> service.grantRole(CALLER_ID, new GrantRoleRequest(UserRole.ADMIN, "why")))
+        assertThatThrownBy(() -> service.grantRole(CALLER_ID, new GrantRoleRequest(UserRole.ADMIN, null, "why")))
                 .isInstanceOf(SecurityAdminException.class)
                 .hasMessageContaining("cannot change your own role");
 
@@ -159,7 +165,7 @@ class SecurityAdminServiceImplTest {
         when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(securityAdminCaller()));
         when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(targetUser(UserRole.ADMIN)));
 
-        assertThatThrownBy(() -> service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, "why")))
+        assertThatThrownBy(() -> service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, null, "why")))
                 .isInstanceOf(SecurityAdminException.class)
                 .hasMessageContaining("already has role");
 
@@ -171,7 +177,7 @@ class SecurityAdminServiceImplTest {
         when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(securityAdminCaller()));
         when(userRepository.findById(TARGET_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, "why")))
+        assertThatThrownBy(() -> service.grantRole(TARGET_ID, new GrantRoleRequest(UserRole.ADMIN, null, "why")))
                 .isInstanceOf(SecurityAdminException.class)
                 .hasMessageContaining("not found");
     }

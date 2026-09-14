@@ -10,6 +10,7 @@ import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogServ
 import za.co.urbaneye.reporthole.incident.dto.IncidentCommentResponse;
 import za.co.urbaneye.reporthole.incident.entity.IncidentComment;
 import za.co.urbaneye.reporthole.incident.repository.IncidentCommentRepository;
+import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.repository.IncidentRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IIncidentCommentService;
 import za.co.urbaneye.reporthole.security.SecretUtil;
@@ -17,7 +18,9 @@ import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -32,6 +35,8 @@ public class IncidentCommentServiceImpl implements IIncidentCommentService {
     private final IncidentRepository incidentRepository;
     private final IUserRepository userRepository;
     private final IAuditLogService auditLogService;
+    private final IncidentReporterRepository incidentReporterRepository;
+    private final IncidentSseService incidentSseService;
 
     @Override
     public List<IncidentCommentResponse> getComments(UUID incidentId) {
@@ -63,6 +68,10 @@ public class IncidentCommentServiceImpl implements IIncidentCommentService {
         IncidentComment saved = commentRepository.save(comment);
         auditLogService.record(author, "COMMENT_POSTED", "INCIDENT", incidentId,
                 "Posted a comment on an incident");
+
+        Set<UUID> recipients = new HashSet<>(incidentReporterRepository.findUserIdsByIncidentId(incidentId));
+        incidentSseService.pushIncidentUpdate(incidentId, recipients);
+
         return toResponse(saved);
     }
 

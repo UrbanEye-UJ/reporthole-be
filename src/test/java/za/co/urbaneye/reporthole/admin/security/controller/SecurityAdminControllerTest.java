@@ -90,7 +90,7 @@ class SecurityAdminControllerTest {
 
         mockMvc.perform(post("/admin/security/users/" + TARGET + "/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, "Q3 rollout"))))
+                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, UUID.randomUUID(), "Q3 rollout"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Role granted."));
     }
@@ -112,7 +112,7 @@ class SecurityAdminControllerTest {
 
         mockMvc.perform(post("/admin/security/users/" + TARGET + "/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, "x"))))
+                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, UUID.randomUUID(), "x"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -124,7 +124,7 @@ class SecurityAdminControllerTest {
 
         mockMvc.perform(post("/admin/security/users/" + TARGET + "/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, "x"))))
+                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, UUID.randomUUID(), "x"))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -136,7 +136,7 @@ class SecurityAdminControllerTest {
 
         mockMvc.perform(post("/admin/security/users/" + TARGET + "/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, "x"))))
+                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, UUID.randomUUID(), "x"))))
                 .andExpect(status().isConflict());
     }
 
@@ -148,7 +148,7 @@ class SecurityAdminControllerTest {
 
         mockMvc.perform(post("/admin/security/users/" + TARGET + "/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, "x"))))
+                        .content(objectMapper.writeValueAsString(new GrantRoleRequest(UserRole.ADMIN, UUID.randomUUID(), "x"))))
                 .andExpect(status().isNotFound());
     }
 

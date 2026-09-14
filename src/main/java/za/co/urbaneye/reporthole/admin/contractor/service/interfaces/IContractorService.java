@@ -28,15 +28,16 @@ public interface IContractorService {
 
     /**
      * Returns every CONTRACTOR account with its current active-job count. Caller must be an ADMIN.
-     * Emails are masked (e.g. {@code "jo***@example.com"}) — use {@link #revealEmail} to view one in full.
+     * Emails and phone numbers are masked (e.g. {@code "jo***@example.com"}, {@code "082***890"}) —
+     * use {@link #revealEmail} to view them in full.
      */
     List<ContractorResponse> getContractors();
 
     /**
-     * Returns a contractor's decrypted email after verifying the calling admin's own
-     * current password as a step-up re-authentication check. Caller must be an ADMIN.
+     * Returns a contractor's decrypted email and phone number after verifying the calling
+     * admin's own current password as a step-up re-authentication check. Caller must be an ADMIN.
      *
-     * @param contractorId the contractor whose email should be revealed
+     * @param contractorId the contractor whose details should be revealed
      * @param password     the calling admin's own current password
      */
     RevealEmailResponse revealEmail(UUID contractorId, String password);

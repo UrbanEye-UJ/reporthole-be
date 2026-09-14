@@ -134,6 +134,7 @@ public class RegistrationServiceImpl implements IRegistrationService {
                 userEntity.setSpecialisations(new HashSet<>(contractorInvite.getSpecialisations()));
             } else if (municipalityToken != null) {
                 userEntity.setRole(UserRole.ADMIN);
+                userEntity.setMunicipality(municipalityToken.getMunicipality());
             } else {
                 userEntity.setRole(UserRole.CIVILIAN);
             }

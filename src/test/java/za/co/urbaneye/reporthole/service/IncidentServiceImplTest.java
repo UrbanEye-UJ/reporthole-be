@@ -75,6 +75,9 @@ class IncidentServiceImplTest {
     @Mock
     private IncidentProperties incidentProperties;
 
+    @Mock
+    private za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository municipalityRepository;
+
     @InjectMocks
     private IncidentServiceImpl incidentService;
 

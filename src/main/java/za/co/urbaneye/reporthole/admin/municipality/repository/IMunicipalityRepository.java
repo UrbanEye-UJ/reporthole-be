@@ -1,6 +1,8 @@
 package za.co.urbaneye.reporthole.admin.municipality.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 
@@ -33,4 +35,22 @@ public interface IMunicipalityRepository extends JpaRepository<Municipality, UUI
      * @return all municipalities ordered by name
      */
     List<Municipality> findAllByOrderByNameAsc();
+
+    /**
+     * @return the municipality whose real boundary polygon contains the given point, if any —
+     *         used to auto-tag a newly reported incident to its municipality on creation
+     */
+    @Query(value = """
+            SELECT *
+            FROM municipalities
+            WHERE municipality_boundary IS NOT NULL
+              AND ST_Contains(
+                  municipality_boundary,
+                  ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)
+              )
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Municipality> findContainingPoint(
+            @Param("latitude") double latitude,
+            @Param("longitude") double longitude);
 }
