@@ -1,5 +1,6 @@
 package za.co.urbaneye.reporthole.incident.service.interfaces;
 
+import za.co.urbaneye.reporthole.incident.dto.IncidentAnalyticsDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
@@ -29,6 +30,16 @@ public interface IncidentService {
 
     /** Platform-wide totals for dashboard KPI cards. */
     IncidentStatsDTO getIncidentStats();
+
+    /**
+     * Aggregated operational analytics (status funnel, incident-type mix, monthly volume trend,
+     * average resolution time and its trend) for the analytics dashboard.
+     *
+     * @param municipalityId when the caller is an ADMIN, ignored — their own municipality always
+     *                       wins. Otherwise (SECURITY_ADMIN) honoured as an optional filter, or
+     *                       {@code null} for platform-wide.
+     */
+    IncidentAnalyticsDTO getIncidentAnalytics(UUID municipalityId);
 
     /** Assigns the incident to a contractor. Caller must be an ADMIN; the target user must be a CONTRACTOR. */
     IncidentResponseDTO assignIncident(UUID incidentId, UUID contractorId);

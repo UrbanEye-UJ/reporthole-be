@@ -112,7 +112,7 @@ class AdminContractorControllerTest {
         ContractorResponse response = new ContractorResponse(
                 UUID.randomUUID(), "Con", "Tractor", "c***@example.com", "0123456789", 1, 2, LocalDateTime.now(),
                 List.of(IssueType.POTHOLE));
-        when(contractorService.getContractors()).thenReturn(List.of(response));
+        when(contractorService.getContractors(any())).thenReturn(List.of(response));
 
         mockMvc.perform(get("/admin/contractors"))
                 .andExpect(status().isOk())
@@ -122,7 +122,7 @@ class AdminContractorControllerTest {
     @Test
     @WithMockUser
     void getContractors_callerNotAdmin_returns403() throws Exception {
-        when(contractorService.getContractors())
+        when(contractorService.getContractors(any()))
                 .thenThrow(new ContractorException("Only admins can manage contractors"));
 
         mockMvc.perform(get("/admin/contractors"))

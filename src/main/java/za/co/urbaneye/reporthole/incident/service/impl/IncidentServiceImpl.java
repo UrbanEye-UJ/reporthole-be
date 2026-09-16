@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.incident.config.IncidentProperties;
+import za.co.urbaneye.reporthole.incident.dto.IncidentAnalyticsDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
@@ -46,12 +47,19 @@ import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -267,6 +275,100 @@ public class IncidentServiceImpl implements IncidentService {
                 ? incidentRepository.countForAdmin(municipality)
                 : incidentRepository.countByDeletedFalse();
         return new IncidentStatsDTO(total, assignmentWorkflowRepository.countResolvedIncidents());
+    }
+
+    @Override
+    public IncidentAnalyticsDTO getIncidentAnalytics(UUID municipalityId) {
+        // An ADMIN is always locked to their own municipality; the passed filter is only
+        // honoured for callers with no municipality of their own (SECURITY_ADMIN).
+        Municipality adminMunicipality = resolveAdminMunicipality();
+        UUID effectiveMunicipalityId = adminMunicipality != null ? adminMunicipality.getId() : municipalityId;
+
+        List<Incident> incidents = effectiveMunicipalityId != null
+                ? incidentRepository.findByDeletedFalseAndMunicipality_Id(effectiveMunicipalityId)
+                : incidentRepository.findByDeletedFalse();
+
+        if (incidents.isEmpty()) {
+            return new IncidentAnalyticsDTO(0, 0, 0, null, List.of(), List.of(), List.of(), List.of());
+        }
+
+        List<UUID> incidentIds = incidents.stream().map(Incident::getIncidentId).toList();
+
+        // findStatusBreakdown only covers incidents that have at least one AssignmentWorkflow
+        // row. A freshly-reported incident has none yet, but is still REPORTED (the same default
+        // resolveStatus() falls back to) — fold that gap into the REPORTED bucket rather than
+        // silently dropping those incidents from the funnel.
+        Map<AssignmentStatus, Long> statusCounts = new EnumMap<>(AssignmentStatus.class);
+        for (Object[] row : assignmentWorkflowRepository.findStatusBreakdown(incidentIds)) {
+            statusCounts.put((AssignmentStatus) row[0], (Long) row[1]);
+        }
+        long incidentsWithWorkflow = statusCounts.values().stream().mapToLong(Long::longValue).sum();
+        long incidentsWithoutWorkflow = incidents.size() - incidentsWithWorkflow;
+        if (incidentsWithoutWorkflow > 0) {
+            statusCounts.merge(AssignmentStatus.REPORTED, incidentsWithoutWorkflow, Long::sum);
+        }
+        List<IncidentAnalyticsDTO.StatusBreakdownEntry> statusBreakdown = Arrays.stream(AssignmentStatus.values())
+                .map(status -> new IncidentAnalyticsDTO.StatusBreakdownEntry(status, statusCounts.getOrDefault(status, 0L)))
+                .toList();
+
+        long resolvedCount = statusBreakdown.stream()
+                .filter(e -> e.status() == AssignmentStatus.RESOLVED)
+                .mapToLong(IncidentAnalyticsDTO.StatusBreakdownEntry::count)
+                .sum();
+
+        List<IncidentAnalyticsDTO.TypeBreakdownEntry> typeBreakdown = incidents.stream()
+                .collect(Collectors.groupingBy(Incident::getIncidentType, Collectors.counting()))
+                .entrySet().stream()
+                .map(e -> new IncidentAnalyticsDTO.TypeBreakdownEntry(e.getKey(), e.getValue()))
+                .toList();
+
+        YearMonth earliestTrendMonth = YearMonth.now().minusMonths(5);
+        Map<YearMonth, Long> incidentsByMonth = incidents.stream()
+                .map(i -> YearMonth.from(i.getIncidentDate()))
+                .filter(month -> !month.isBefore(earliestTrendMonth))
+                .collect(Collectors.groupingBy(m -> m, Collectors.counting()));
+        List<IncidentAnalyticsDTO.MonthlyTrendEntry> monthlyTrend = monthRange(earliestTrendMonth).stream()
+                .map(m -> new IncidentAnalyticsDTO.MonthlyTrendEntry(m.toString(), incidentsByMonth.getOrDefault(m, 0L)))
+                .toList();
+
+        List<Assignment> resolvedAssignments = assignmentRepository
+                .findByIncident_IncidentIdInAndStatusAndCompletionDateIsNotNull(incidentIds, AssignmentStatus.RESOLVED);
+
+        Double avgResolutionHours = resolvedAssignments.isEmpty() ? null : resolvedAssignments.stream()
+                .mapToDouble(this::resolutionHours)
+                .average()
+                .orElse(0);
+
+        Map<YearMonth, List<Assignment>> resolvedByMonth = resolvedAssignments.stream()
+                .filter(a -> !YearMonth.from(a.getCompletionDate()).isBefore(earliestTrendMonth))
+                .collect(Collectors.groupingBy(a -> YearMonth.from(a.getCompletionDate())));
+        List<IncidentAnalyticsDTO.ResolutionTrendEntry> resolutionTimeTrend = monthRange(earliestTrendMonth).stream()
+                .map(m -> {
+                    List<Assignment> monthAssignments = resolvedByMonth.get(m);
+                    Double avgHours = monthAssignments == null ? null
+                            : monthAssignments.stream().mapToDouble(this::resolutionHours).average().orElse(0);
+                    return new IncidentAnalyticsDTO.ResolutionTrendEntry(m.toString(), avgHours);
+                })
+                .toList();
+
+        return new IncidentAnalyticsDTO(
+                incidents.size(),
+                resolvedCount,
+                incidents.size() - resolvedCount,
+                avgResolutionHours,
+                statusBreakdown,
+                typeBreakdown,
+                monthlyTrend,
+                resolutionTimeTrend
+        );
+    }
+
+    private double resolutionHours(Assignment assignment) {
+        return Duration.between(assignment.getAssignmentDate(), assignment.getCompletionDate()).toMinutes() / 60.0;
+    }
+
+    private List<YearMonth> monthRange(YearMonth start) {
+        return Stream.iterate(start, m -> m.plusMonths(1)).limit(6).toList();
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.urbaneye.reporthole.admin.contractor.dto.ContractorResponse;
 import za.co.urbaneye.reporthole.admin.contractor.dto.InviteContractorRequest;
@@ -55,16 +56,19 @@ public class AdminContractorController {
     @GetMapping
     @Operation(
             summary = "List contractors",
-            description = "Returns all CONTRACTOR accounts with their active-job counts. Admin only. " +
+            description = "Returns all CONTRACTOR accounts with their active-job counts. Admin or security " +
+                    "admin only. An admin always sees only their own municipality; a security admin sees every " +
+                    "contractor platform-wide, or one municipality's with ?municipalityId=. " +
                     "Emails and phone numbers are masked (e.g. \"jo***@example.com\", \"082***890\") — " +
                     "use POST /{id}/reveal-email to view them in full."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Contractors returned"),
-            @ApiResponse(responseCode = "403", description = "Caller is not an admin")
+            @ApiResponse(responseCode = "403", description = "Caller is not an admin or security admin")
     })
-    public ResponseEntity<AppResponse<List<ContractorResponse>>> getContractors() {
-        return ResponseEntity.ok(AppResponse.ok(contractorService.getContractors()));
+    public ResponseEntity<AppResponse<List<ContractorResponse>>> getContractors(
+            @RequestParam(required = false) UUID municipalityId) {
+        return ResponseEntity.ok(AppResponse.ok(contractorService.getContractors(municipalityId)));
     }
 
     @PostMapping("/{id}/reveal-email")

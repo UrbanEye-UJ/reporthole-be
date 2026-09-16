@@ -15,4 +15,7 @@ public interface IUserRepository extends JpaRepository<User, UUID> {
 
     /** Returns all users with the given role belonging to the given municipality. */
     List<User> findByRoleAndMunicipality(UserRole role, Municipality municipality);
+
+    /** Same as {@link #findByRoleAndMunicipality} but filters by municipality id directly. */
+    List<User> findByRoleAndMunicipality_Id(UserRole role, UUID municipalityId);
 }
