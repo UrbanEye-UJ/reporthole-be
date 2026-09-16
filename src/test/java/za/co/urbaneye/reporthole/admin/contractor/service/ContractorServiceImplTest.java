@@ -231,7 +231,7 @@ class ContractorServiceImplTest {
         when(assignmentRepository.countByContractor_UserIdAndStatus(CONTRACTOR_ID, AssignmentStatus.RESOLVED))
                 .thenReturn(5);
 
-        List<ContractorResponse> result = service.getContractors();
+        List<ContractorResponse> result = service.getContractors(null);
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().email()).isEqualTo("c***@example.com");
@@ -245,7 +245,7 @@ class ContractorServiceImplTest {
         when(userRepository.findById(ADMIN_ID))
                 .thenReturn(Optional.of(User.builder().userId(ADMIN_ID).role(UserRole.CIVILIAN).build()));
 
-        assertThatThrownBy(() -> service.getContractors())
+        assertThatThrownBy(() -> service.getContractors(null))
                 .isInstanceOf(ContractorException.class)
                 .hasMessageContaining("Only admins");
     }

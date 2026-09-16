@@ -28,6 +28,7 @@ import za.co.urbaneye.reporthole.global.entity.AppResponse;
 import za.co.urbaneye.reporthole.incident.clustering.IncidentClusterDTO;
 import za.co.urbaneye.reporthole.incident.clustering.IncidentClusteringService;
 import za.co.urbaneye.reporthole.incident.dto.AssignIncidentRequest;
+import za.co.urbaneye.reporthole.incident.dto.IncidentAnalyticsDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentPageResponse;
 import za.co.urbaneye.reporthole.incident.dto.IncidentRequestDTO;
 import za.co.urbaneye.reporthole.incident.dto.IncidentResponseDTO;
@@ -131,6 +132,19 @@ public class IncidentController {
     )
     public ResponseEntity<AppResponse<IncidentStatsDTO>> getIncidentStats() {
         return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentStats()));
+    }
+
+    @GetMapping("/analytics")
+    @Operation(
+            summary = "Get incident analytics",
+            description = "Returns the status funnel, incident-type mix, monthly volume trend, and average " +
+                    "resolution time (with its own monthly trend) for the analytics dashboard. An ADMIN always " +
+                    "sees only their own municipality; a security admin sees platform-wide data, or one " +
+                    "municipality's with ?municipalityId=."
+    )
+    public ResponseEntity<AppResponse<IncidentAnalyticsDTO>> getIncidentAnalytics(
+            @RequestParam(required = false) UUID municipalityId) {
+        return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentAnalytics(municipalityId)));
     }
 
     @GetMapping("/pending-review")
