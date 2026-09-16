@@ -137,14 +137,24 @@ public class ContractorServiceImpl implements IContractorService {
     }
 
     @Override
-    public List<ContractorResponse> getContractors() {
-        User admin = requireAdmin();
+    public List<ContractorResponse> getContractors(UUID municipalityId) {
+        User caller = requireAdminOrSecurityAdmin();
 
-        // If the admin belongs to a municipality, return only contractors in that municipality.
-        // If the admin has no municipality (e.g. bootstrapped admin), return all contractors.
-        List<User> contractors = admin.getMunicipality() != null
-                ? userRepository.findByRoleAndMunicipality(UserRole.CONTRACTOR, admin.getMunicipality())
-                : userRepository.findByRole(UserRole.CONTRACTOR);
+        List<User> contractors;
+        if (caller.getRole() == UserRole.ADMIN) {
+            // An admin only ever sees their own municipality's contractors — any passed
+            // municipalityId is ignored. If the admin has no municipality (e.g. bootstrapped
+            // admin), fall back to all contractors.
+            contractors = caller.getMunicipality() != null
+                    ? userRepository.findByRoleAndMunicipality(UserRole.CONTRACTOR, caller.getMunicipality())
+                    : userRepository.findByRole(UserRole.CONTRACTOR);
+        } else {
+            // SECURITY_ADMIN isn't scoped to a municipality — honour the optional filter,
+            // or return every contractor platform-wide when it's absent.
+            contractors = municipalityId != null
+                    ? userRepository.findByRoleAndMunicipality_Id(UserRole.CONTRACTOR, municipalityId)
+                    : userRepository.findByRole(UserRole.CONTRACTOR);
+        }
 
         return contractors.stream()
                 .map(user -> {
@@ -210,6 +220,22 @@ public class ContractorServiceImpl implements IContractorService {
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ContractorException("User not found"));
         if (currentUser.getRole() != UserRole.ADMIN) {
+            throw new ContractorException("Only admins can manage contractors");
+        }
+        return currentUser;
+    }
+
+    /**
+     * Same as {@link #requireAdmin()} but also allows SECURITY_ADMIN — used only by the
+     * read-only {@link #getContractors} listing, which a security admin needs platform-wide
+     * visibility into. Inviting and revealing contractor details stay ADMIN-only.
+     */
+    private User requireAdminOrSecurityAdmin() {
+        UUID currentUserId = UUID.fromString(
+                (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ContractorException("User not found"));
+        if (currentUser.getRole() != UserRole.ADMIN && currentUser.getRole() != UserRole.SECURITY_ADMIN) {
             throw new ContractorException("Only admins can manage contractors");
         }
         return currentUser;

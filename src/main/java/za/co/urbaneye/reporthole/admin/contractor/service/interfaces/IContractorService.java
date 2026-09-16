@@ -27,11 +27,15 @@ public interface IContractorService {
     ContractorResponse completeContractorRegistration(CompleteContractorRegistrationRequest request);
 
     /**
-     * Returns every CONTRACTOR account with its current active-job count. Caller must be an ADMIN.
+     * Returns every CONTRACTOR account with its current active-job count. Caller must be an ADMIN
+     * or SECURITY_ADMIN. An ADMIN always sees only their own municipality; a SECURITY_ADMIN sees
+     * every contractor platform-wide, or just one municipality's when {@code municipalityId} is given.
      * Emails and phone numbers are masked (e.g. {@code "jo***@example.com"}, {@code "082***890"}) —
      * use {@link #revealEmail} to view them in full.
+     *
+     * @param municipalityId optional filter, honoured only for SECURITY_ADMIN callers
      */
-    List<ContractorResponse> getContractors();
+    List<ContractorResponse> getContractors(UUID municipalityId);
 
     /**
      * Returns a contractor's decrypted email and phone number after verifying the calling

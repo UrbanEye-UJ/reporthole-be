@@ -24,4 +24,11 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
 
     /** Removes all assignments for the given incident — used when an admin reopens a resolved task. */
     void deleteByIncident_IncidentId(UUID incidentId);
+
+    /**
+     * Resolved assignments (with a completion date) among the given incidents — the source of
+     * truth for real resolution-time analytics ({@code completionDate - assignmentDate}).
+     */
+    List<Assignment> findByIncident_IncidentIdInAndStatusAndCompletionDateIsNotNull(
+            List<UUID> incidentIds, AssignmentStatus status);
 }
