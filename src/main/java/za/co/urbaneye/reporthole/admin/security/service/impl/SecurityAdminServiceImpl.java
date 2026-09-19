@@ -223,6 +223,12 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
         return entries.stream().map(AuditEntryResponse::from).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public void checkAccess() {
+        requireSecurityAdmin();
+    }
+
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------

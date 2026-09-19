@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
 # Restart script for Reporthole production services.
 # Called by the GitHub Actions restart workflow.
-# Usage: ./restart.sh <backend|ui|caddy|postgres|all>
+# Usage: ./restart.sh <backend|ui|both|caddy|postgres|pgadmin|dozzle>
+#
+# "both" is the only grouped option — it restarts backend+ui together.
+# Every other service is individual-only, by design (no "all").
 
 set -euo pipefail
 
 SERVICE="${1:-}"
 
-if [[ -z "$SERVICE" ]]; then
-  echo "Usage: $0 <backend|ui|caddy|postgres|all>"
-  exit 1
-fi
-
 declare -A SERVICE_MAP=(
   [backend]="reporthole-be"
   [ui]="reporthole-ui"
+  [both]="reporthole-be reporthole-ui"
   [caddy]="reporthole-caddy"
   [postgres]="reporthole-postgres"
-  [all]="reporthole-be reporthole-ui reporthole-caddy reporthole-postgres"
+  [pgadmin]="reporthole-pgadmin"
+  [dozzle]="reporthole-dozzle"
 )
 
+if [[ -z "$SERVICE" ]]; then
+  VALID_SERVICES="${!SERVICE_MAP[*]}"
+  echo "Usage: $0 <${VALID_SERVICES// /|}>"
+  exit 1
+fi
+
 if [[ -z "${SERVICE_MAP[$SERVICE]:-}" ]]; then
-  echo "Error: unknown service '${SERVICE}'. Must be one of: backend, ui, caddy, postgres, all"
+  echo "Error: unknown service '${SERVICE}'. Must be one of: ${!SERVICE_MAP[*]}"
   exit 1
 fi
 

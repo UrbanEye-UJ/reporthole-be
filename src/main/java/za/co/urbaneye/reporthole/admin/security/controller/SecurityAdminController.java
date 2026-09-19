@@ -209,4 +209,20 @@ public class SecurityAdminController {
     public ResponseEntity<AppResponse<List<AuditLogEntryResponse>>> listAuditLog() {
         return ResponseEntity.ok(AppResponse.ok(auditLogService.listAll()));
     }
+
+    @GetMapping("/check-access")
+    @Operation(
+            summary = "Access-gate check for the /pgadmin and /logs dev-tool subpaths",
+            description = "Returns 200 if the caller is a security admin, 403 otherwise. Called by Caddy's " +
+                    "forward_auth as a subrequest before proxying to pgAdmin/Dozzle — not meant to be called " +
+                    "directly by the frontend. No response body; the status code is the whole contract."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Caller is a security admin"),
+            @ApiResponse(responseCode = "403", description = "Caller is not a security admin")
+    })
+    public ResponseEntity<Void> checkAccess() {
+        securityAdminService.checkAccess();
+        return ResponseEntity.ok().build();
+    }
 }

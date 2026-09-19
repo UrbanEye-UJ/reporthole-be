@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
  * <pre>
  * inference:
  *   model-path: classpath:models/Reporthole-v1.onnx
+ *   stock-model-path: classpath:models/yolov8n-coco.onnx
  *   discard-threshold: 0.65
  *   auto-log-threshold: 0.80
  * </pre>
@@ -32,6 +33,13 @@ public class InferenceProperties {
      * or a plain filesystem path for externally mounted models (e.g. Docker volumes).
      */
     private String modelPath = "classpath:models/Reporthole-v1.onnx";
+
+    /**
+     * Path to the stock, COCO-pretrained YOLOv8n ONNX model used by
+     * {@code StockInferenceService}. Same {@code classpath:}/filesystem path
+     * convention as {@link #modelPath}.
+     */
+    private String stockModelPath = "classpath:models/yolov8n-coco.onnx";
 
     /**
      * Minimum confidence required to log an event; detections below this value are discarded.

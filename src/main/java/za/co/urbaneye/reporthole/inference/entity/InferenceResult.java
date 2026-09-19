@@ -19,6 +19,7 @@ import za.co.urbaneye.reporthole.inference.service.OnnxInferenceService;
  *                   {@code null} when {@code detected} is {@code false}
  * @param confidence best detection confidence in the range [0.0, 1.0], rounded to 4 decimal places;
  *                   {@code 0.0} when {@code detected} is {@code false}
+ * @param source     which model produced this result
  *
  * @author Refentse
  * @since 1.0
@@ -27,15 +28,26 @@ public record InferenceResult(
         boolean detected,
         String label,
         String rawLabel,
-        double confidence
+        double confidence,
+        InferenceSource source
 ) {
 
     /**
-     * Convenience factory for a no-detection result.
+     * Convenience factory for a no-detection {@link InferenceSource#CUSTOM} result.
      *
      * @return {@link InferenceResult} with {@code detected=false} and all other fields null/zero
      */
     public static InferenceResult empty() {
-        return new InferenceResult(false, null, null, 0.0);
+        return empty(InferenceSource.CUSTOM);
+    }
+
+    /**
+     * Convenience factory for a no-detection result from a specific model.
+     *
+     * @param source which model found nothing
+     * @return {@link InferenceResult} with {@code detected=false} and all other fields null/zero
+     */
+    public static InferenceResult empty(InferenceSource source) {
+        return new InferenceResult(false, null, null, 0.0, source);
     }
 }

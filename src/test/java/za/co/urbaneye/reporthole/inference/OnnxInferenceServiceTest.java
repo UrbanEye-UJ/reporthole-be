@@ -14,6 +14,7 @@ import za.co.urbaneye.reporthole.inference.service.OnnxInferenceService;
 
 import java.io.IOException;
 import java.nio.FloatBuffer;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,7 +66,7 @@ class OnnxInferenceServiceTest {
         when(mockSession.run(anyMap())).thenReturn(mockResult);
 
         byte[] imageBytes = solidJpegBytes();
-        service.predict(imageBytes);
+        service.predict(imageBytes).get(0);
 
         verify(mockSession, times(1)).run(anyMap());
     }
@@ -82,7 +83,7 @@ class OnnxInferenceServiceTest {
         when(mockResult.get("output0")).thenReturn(Optional.of(mockOutputTensor));
         when(mockSession.run(anyMap())).thenReturn(mockResult);
 
-        InferenceResult result = serviceWithMockedSession(data).predict(solidJpegBytes());
+        InferenceResult result = serviceWithMockedSession(data).predict(solidJpegBytes()).get(0);
 
         assertThat(result.detected()).isTrue();
         assertThat(result.label()).isEqualTo("POTHOLE");
@@ -97,7 +98,7 @@ class OnnxInferenceServiceTest {
         when(mockResult.get("output0")).thenReturn(Optional.of(mockOutputTensor));
         when(mockSession.run(anyMap())).thenReturn(mockResult);
 
-        InferenceResult result = serviceWithMockedSession(data).predict(solidJpegBytes());
+        InferenceResult result = serviceWithMockedSession(data).predict(solidJpegBytes()).get(0);
 
         assertThat(result.detected()).isFalse();
         assertThat(result.label()).isNull();
@@ -117,10 +118,10 @@ class OnnxInferenceServiceTest {
     private OnnxInferenceService serviceWithMockedSession(float[] outputData) {
         return new OnnxInferenceService(props) {
             @Override
-            public InferenceResult predict(byte[] imageBytes) throws IOException, OrtException {
+            public List<InferenceResult> predict(byte[] imageBytes) throws IOException, OrtException {
                 try (OrtSession.Result results = mockSession.run(anyMap())) {
                     OnnxTensor output = (OnnxTensor) results.get("output0").orElseThrow();
-                    return extractBestDetection(output.getFloatBuffer());
+                    return List.of(extractBestDetection(output.getFloatBuffer()));
                 }
             }
         };

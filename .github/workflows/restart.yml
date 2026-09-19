@@ -10,9 +10,11 @@ on:
         options:
           - backend
           - ui
+          - both
           - caddy
           - postgres
-          - all
+          - pgadmin
+          - dozzle
 
 jobs:
   restart:
