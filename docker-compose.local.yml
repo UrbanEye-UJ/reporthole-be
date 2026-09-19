@@ -30,6 +30,8 @@ services:
       - "8025:8025"
     networks:
       - reporthole-net
+    env_file:
+      - .env
 
   reporthole-be:
     profiles: ["full"]
@@ -88,9 +90,70 @@ services:
       retries: 3
       start_period: 30s
 
+  # Reverse proxy — same Caddyfile as prod, so /pgadmin and /logs behave identically
+  # in both environments. Not gated behind the "full" profile: it's useful even when
+  # reporthole-be/reporthole-ui run natively (IntelliJ/next dev), since the Caddyfile's
+  # reverse_proxy directives fall back to host.docker.internal when the containerized
+  # backend/frontend aren't up.
+  caddy:
+    image: caddy:2-alpine
+    container_name: reporthole-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+
+  # Dev/ops tooling — DB browser, routed through Caddy at /pgadmin (see infra/Caddyfile).
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: reporthole-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-reporthole.team@gmail.com}
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-1@qwerty}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      SCRIPT_NAME: /pgadmin
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # Dev/ops tooling — live container log viewer, routed through Caddy at /logs.
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: reporthole-dozzle
+    environment:
+      DOZZLE_BASE: /logs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
 volumes:
   uploads-data:
   postgres-data:
+  pgadmin-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   reporthole-net:

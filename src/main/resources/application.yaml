@@ -54,6 +54,7 @@ app:
 
 inference:
   model-path: classpath:models/Reporthole-v1.onnx
+  stock-model-path: classpath:models/yolov8n-coco.onnx
   discard-threshold: 0.65
   auto-log-threshold: 0.75
 

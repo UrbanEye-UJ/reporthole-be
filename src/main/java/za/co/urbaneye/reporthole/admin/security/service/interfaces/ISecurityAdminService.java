@@ -115,4 +115,16 @@ public interface ISecurityAdminService {
      *         if the caller is not a security admin
      */
     List<AuditEntryResponse> listAudit(UUID targetUserId);
+
+    /**
+     * Pure access-gate check — verifies the caller is a {@code SECURITY_ADMIN} and returns
+     * nothing else. Backs the Caddy {@code forward_auth} check in front of the {@code /pgadmin}
+     * and {@code /logs} dev-tool subpaths: a 200 here lets the request through, the
+     * {@link za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException} thrown
+     * otherwise maps to 403 via the global exception handler, which Caddy treats as a block.
+     *
+     * @throws za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException
+     *         if the caller is not a security admin
+     */
+    void checkAccess();
 }

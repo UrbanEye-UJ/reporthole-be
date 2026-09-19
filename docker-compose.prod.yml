@@ -114,11 +114,49 @@ services:
       - reporthole-net
     restart: unless-stopped
 
+  # Dev/ops tooling — DB browser, routed through Caddy at /pgadmin (see infra/Caddyfile).
+  # Not reachable on a published port; only accessible via Caddy, same as backend/ui above.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: reporthole-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-reporthole.team@gmail.com}
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-1@qwerty}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      SCRIPT_NAME: /pgadmin
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # Dev/ops tooling — live container log viewer, routed through Caddy at /logs.
+  # Read-only docker.sock mount: Dozzle only needs to list/stream logs, never write.
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: reporthole-dozzle
+    environment:
+      DOZZLE_BASE: /logs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - reporthole-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
 volumes:
   uploads-data:
   caddy-data:
   caddy-config:
   postgres-data:
+  pgadmin-data:
 
 networks:
   reporthole-net:

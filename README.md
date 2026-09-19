@@ -60,6 +60,15 @@ See [`docs/DOCKER_SETUP.md`](docs/DOCKER_SETUP.md) to run the full stack (FE + B
 
 ---
 
+## Dev/Ops Tooling
+
+- **pgAdmin** — browse/query the Postgres/PostGIS database. Local: `http://localhost/pgadmin`. Prod: `https://<CADDY_SITE_ADDRESS>/pgadmin`. Access requires being logged into the app as `SECURITY_ADMIN` (see below); pgAdmin then shows its own separate login on top (`PGADMIN_DEFAULT_EMAIL` / your `POSTGRES_PASSWORD`). Add the Postgres server once via service name `reporthole-postgres`, port `5432` — the saved connection persists across redeploys via the `pgadmin-data` volume.
+- **Dozzle** — live-tail logs from all containers (backend, frontend, Postgres, Caddy). Local: `http://localhost/logs`. Prod: `https://<CADDY_SITE_ADDRESS>/logs`. Same access rule as pgAdmin; Dozzle itself has no login of its own.
+
+**Access control:** both are gated by Caddy's `forward_auth`, which checks `GET /api/admin/security/check-access` (`SecurityAdminController`) before proxying the request through — that endpoint 200s only for an authenticated `SECURITY_ADMIN` session, 403s otherwise. Nothing to configure in `.env` for this: it reuses the same login session as the rest of the app (the `reporthole_token` cookie), so access is automatic once logged in, and forced-logout/role-revoke/suspend cut off `/pgadmin`/`/logs` access immediately too, the same as anywhere else in the app. Reachable via two buttons in the security-admin dashboard sidebar ("Database Admin", "Live Logs"), which open in a new tab.
+
+---
+
 ## Module overview
 
 The codebase is split into vertical slices, each containing its own controller, service, repository, entity, and DTO layers.

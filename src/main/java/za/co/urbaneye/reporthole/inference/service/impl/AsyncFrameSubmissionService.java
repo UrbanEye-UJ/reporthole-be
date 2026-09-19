@@ -19,8 +19,8 @@ import za.co.urbaneye.reporthole.inference.entity.FrameStatus;
 import za.co.urbaneye.reporthole.inference.entity.InferenceResult;
 import za.co.urbaneye.reporthole.inference.entity.RoutingDecision;
 import za.co.urbaneye.reporthole.inference.exception.InferenceQueueFullException;
-import za.co.urbaneye.reporthole.inference.service.OnnxInferenceService;
 import za.co.urbaneye.reporthole.inference.service.interfaces.IFrameSubmissionService;
+import za.co.urbaneye.reporthole.inference.service.interfaces.IInferenceService;
 
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -56,7 +56,7 @@ import java.util.concurrent.RejectedExecutionException;
 @RequiredArgsConstructor
 public class AsyncFrameSubmissionService implements IFrameSubmissionService {
 
-    private final OnnxInferenceService inferenceService;
+    private final IInferenceService inferenceService;
     private final IncidentService incidentService;
     private final InferenceProperties inferenceProperties;
 
@@ -134,7 +134,9 @@ public class AsyncFrameSubmissionService implements IFrameSubmissionService {
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         try {
-            InferenceResult result = inferenceService.predict(job.getImageBytes());
+            // Index 0 is always the primary/authoritative result (the custom model),
+            // per the IInferenceService contract — see ChainedInferenceService.
+            InferenceResult result = inferenceService.predict(job.getImageBytes()).get(0);
             RoutingDecision decision = RoutingDecision.from(result.confidence(), inferenceProperties);
 
             log.info("[Frame {}] Inference done — label={}, confidence={}, decision={}",
