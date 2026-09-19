@@ -24,7 +24,7 @@
 	# request through to pgAdmin/Dozzle, anything else is returned to the browser as-is
 	# and the dev tool is never reached. Same dual-upstream pattern as /api/* below so
 	# this still works when the backend runs natively (not containerized) in local dev.
-	handle /pgadmin/* {
+	handle /pgadmin /pgadmin/* {
 		forward_auth {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
 			uri /api/admin/security/check-access
 			lb_policy first
@@ -34,7 +34,7 @@
 		reverse_proxy reporthole-pgadmin:80
 	}
 
-	handle /logs/* {
+	handle /logs /logs/* {
 		forward_auth {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
 			uri /api/admin/security/check-access
 			lb_policy first
