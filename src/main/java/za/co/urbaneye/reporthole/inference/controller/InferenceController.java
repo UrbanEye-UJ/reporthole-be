@@ -22,19 +22,22 @@ import za.co.urbaneye.reporthole.inference.dto.FrameAcceptedResponse;
 import za.co.urbaneye.reporthole.inference.dto.PredictResponseDTO;
 import za.co.urbaneye.reporthole.inference.entity.InferenceResult;
 import za.co.urbaneye.reporthole.inference.exception.InferenceQueueFullException;
-import za.co.urbaneye.reporthole.inference.service.OnnxInferenceService;
 import za.co.urbaneye.reporthole.inference.service.interfaces.IFrameSubmissionService;
+import za.co.urbaneye.reporthole.inference.service.interfaces.IInferenceService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * REST controller exposing the ONNX road-damage inference endpoint.
  *
- * <p>Accepts a single image file and runs it through {@link OnnxInferenceService}.
- * The response shape intentionally mirrors the FastAPI {@code /predict} endpoint
- * so the Next.js proxy at {@code /api/ml/predict} can switch backends by changing
- * only the {@code ML_SERVICE_URL} environment variable.</p>
+ * <p>Accepts a single image file and runs it through the injected
+ * {@link IInferenceService} (resolves to {@code ChainedInferenceService} —
+ * both the custom and stock models run on every request). The response shape
+ * intentionally mirrors the FastAPI {@code /predict} endpoint so the Next.js
+ * proxy at {@code /api/ml/predict} can switch backends by changing only the
+ * {@code ML_SERVICE_URL} environment variable.</p>
  *
  * <p>Authentication: {@code /inference/**} is {@code permitAll} in
  * {@code SecurityConfig} — the endpoint is called from the Next.js server
@@ -51,19 +54,22 @@ import java.util.UUID;
 @Tag(name = "Inference", description = "Road-damage inference via ONNX Runtime")
 public class InferenceController {
 
-    private final OnnxInferenceService inferenceService;
+    private final IInferenceService inferenceService;
     private final IFrameSubmissionService frameSubmissionService;
 
     /**
      * Accepts an image file (JPEG or PNG) and returns the highest-confidence
-     * road-damage prediction from the Reporthole YOLOv8 model.
+     * road-damage prediction from the Reporthole YOLOv8 model, alongside a
+     * supplementary detection from the stock COCO-pretrained model.
      *
-     * <p>When no damage class exceeds zero confidence the response body has
-     * {@code "detected": false} and all detection fields are {@code null}.</p>
+     * <p>{@code detected}/{@code detection} reflect the custom model only —
+     * that stays authoritative for {@code IssueType}/routing. {@code stockDetection}
+     * is populated independently whenever the stock model found anything, even
+     * if the custom model found nothing.</p>
      *
      * @param image multipart image file to analyse
-     * @return {@link PredictResponseDTO} with detection result, or
-     *         {@link PredictResponseDTO#empty()} when nothing is detected;
+     * @return {@link PredictResponseDTO} with both models' detection results, or
+     *         {@link PredictResponseDTO#empty()} when neither model detects anything;
      *         HTTP 400 if the file cannot be read; HTTP 500 on model error
      */
     @PostMapping(value = "/predict", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -90,24 +96,34 @@ public class InferenceController {
             return ResponseEntity.badRequest().build();
         }
 
-        InferenceResult result;
+        List<InferenceResult> results;
         try {
-            result = inferenceService.predict(bytes);
+            results = inferenceService.predict(bytes);
         } catch (Exception e) {
             log.error("Inference failed: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
 
-        if (!result.detected()) {
-            return ResponseEntity.ok(PredictResponseDTO.empty());
+        // By IInferenceService contract, index 0 is always the primary/authoritative
+        // result (the custom model, when the bean resolves to ChainedInferenceService).
+        InferenceResult primary = results.get(0);
+        InferenceResult stock = results.size() > 1 ? results.get(1) : null;
+
+        DetectionDTO stockDetection = (stock != null && stock.detected())
+                ? new DetectionDTO(stock.label(), stock.confidence(), stock.rawLabel(), stock.source())
+                : null;
+
+        if (!primary.detected()) {
+            return ResponseEntity.ok(new PredictResponseDTO(false, new DetectionDTO(null, null, null, null), stockDetection));
         }
 
         DetectionDTO detection = new DetectionDTO(
-                result.label(),
-                result.confidence(),
-                result.rawLabel()
+                primary.label(),
+                primary.confidence(),
+                primary.rawLabel(),
+                primary.source()
         );
-        return ResponseEntity.ok(new PredictResponseDTO(true, detection));
+        return ResponseEntity.ok(new PredictResponseDTO(true, detection, stockDetection));
     }
 
     /**

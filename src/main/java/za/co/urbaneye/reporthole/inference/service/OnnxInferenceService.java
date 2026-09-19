@@ -12,12 +12,15 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.inference.config.InferenceProperties;
 import za.co.urbaneye.reporthole.inference.entity.InferenceResult;
+import za.co.urbaneye.reporthole.inference.entity.InferenceSource;
+import za.co.urbaneye.reporthole.inference.service.interfaces.IInferenceService;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,7 +54,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class OnnxInferenceService {
+public class OnnxInferenceService implements IInferenceService {
 
     private static final int NUM_CLASSES  = 24;
     private static final int BBOX_OFFSET  = 4;   // first 4 values per anchor are bbox coords
@@ -170,12 +173,14 @@ public class OnnxInferenceService {
      * ({@code "normal"}, {@code "object"}) are excluded.</p>
      *
      * @param imageBytes raw bytes of a JPEG or PNG image
-     * @return {@link InferenceResult} with the best detection label and confidence,
-     *         or {@link InferenceResult#empty()} if no damage class scored above 0
+     * @return single-element list containing the best detection label and confidence,
+     *         or {@link InferenceResult#empty()} if no damage class scored above 0 —
+     *         see {@link IInferenceService#predict(byte[])} for the list contract
      * @throws IOException  if the image bytes cannot be decoded
      * @throws OrtException if the ONNX Runtime inference call fails
      */
-    public InferenceResult predict(byte[] imageBytes) throws IOException, OrtException {
+    @Override
+    public List<InferenceResult> predict(byte[] imageBytes) throws IOException, OrtException {
         log.debug("Running inference on {} byte image", imageBytes.length);
         long start = System.currentTimeMillis();
 
@@ -195,7 +200,7 @@ public class OnnxInferenceService {
                 log.info("Inference complete in {}ms — no damage detected", elapsed);
             }
 
-            return result;
+            return List.of(result);
         }
     }
 
@@ -250,7 +255,7 @@ public class OnnxInferenceService {
         log.debug("extractBestDetection — best anchor: rawLabel={}, mappedLabel={}, confidence={}",
                 bestRawLabel, mappedLabel, confidence);
 
-        return new InferenceResult(true, mappedLabel, bestRawLabel, confidence);
+        return new InferenceResult(true, mappedLabel, bestRawLabel, confidence, InferenceSource.CUSTOM);
     }
 
     /**

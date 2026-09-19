@@ -51,6 +51,14 @@ import java.util.UUID;
  * <p>A fallback accepts the JWT via {@code ?token=} query param for SSE
  * connections, because {@code EventSource} cannot set custom headers.</p>
  *
+ * <p>A second, narrower fallback accepts the JWT via the {@code reporthole_token}
+ * cookie, but only for {@code /admin/security/check-access} — the endpoint Caddy's
+ * {@code forward_auth} calls as a subrequest in front of the {@code /pgadmin} and
+ * {@code /logs} dev-tool subpaths. Caddy forwards whatever {@code Cookie} header the
+ * browser attached to the original request, but never synthesizes an
+ * {@code Authorization} header, so without this fallback that endpoint would always
+ * see an unauthenticated request.</p>
+ *
  * <p>If no token is found the request continues unauthenticated and
  * Spring Security enforces access rules on the route level.</p>
  *
@@ -101,6 +109,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 log.info("[JWT-FILTER] SSE fallback: authenticating via ?token=");
                 authenticateWithJwt(queryToken, response, filterChain, request);
                 return;
+            }
+            if (servletPath.endsWith("/admin/security/check-access")) {
+                String cookieToken = extractCookie(request, "reporthole_token");
+                if (cookieToken != null && !cookieToken.isBlank()) {
+                    log.info("[JWT-FILTER] check-access fallback: authenticating via reporthole_token cookie");
+                    authenticateWithJwt(cookieToken, response, filterChain, request);
+                    return;
+                }
             }
             log.info("[JWT-FILTER] No token — passing through unauthenticated");
             filterChain.doFilter(request, response);
@@ -233,6 +249,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void writeUnauthorized(HttpServletResponse response, String reason) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.getWriter().write(reason);
+    }
+
+    /**
+     * Reads a single cookie's value by name from the incoming request.
+     *
+     * @param request the servlet request
+     * @param name    the cookie name to look for
+     * @return the cookie's value, or {@code null} if no cookie with that name is present
+     */
+    private String extractCookie(HttpServletRequest request, String name) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+        for (var cookie : request.getCookies()) {
+            if (cookie.getName().equals(name)) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 
     /**
