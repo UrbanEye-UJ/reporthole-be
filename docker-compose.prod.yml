@@ -94,6 +94,12 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: reporthole-caddy
+    # Entrypoint hashes POSTGRES_PASSWORD into DEV_TOOLS_PASSWORD_HASH at startup — see
+    # reporthole-be/infra/caddy-entrypoint.sh. DEV_TOOLS_USERNAME reuses MAIL_USERNAME
+    # rather than a dedicated secret; both are what gate /pgadmin and /logs (infra/Caddyfile).
+    entrypoint: ["/bin/sh", "/caddy-entrypoint.sh"]
+    environment:
+      DEV_TOOLS_USERNAME: ${MAIL_USERNAME}
     ports:
       - "80:80"
       - "443:443"
@@ -103,6 +109,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./reporthole-be/infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./reporthole-be/infra/caddy-entrypoint.sh:/caddy-entrypoint.sh:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

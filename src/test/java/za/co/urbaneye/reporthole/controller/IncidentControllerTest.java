@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
+import za.co.urbaneye.reporthole.idempotency.service.interfaces.IIdempotencyService;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.incident.clustering.IncidentClusteringService;
 import za.co.urbaneye.reporthole.incident.controller.IncidentController;
@@ -69,8 +70,11 @@ class IncidentControllerTest {
     @MockitoBean
     private IUserAuthRepository userAuthRepository;
 
+    @MockitoBean
+    private IIdempotencyService idempotencyService;
+
     private IncidentRequestDTO buildRequest() {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, null, null, null, null, null);
     }
 
     @Test

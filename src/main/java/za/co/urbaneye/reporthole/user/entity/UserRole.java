@@ -47,7 +47,12 @@ public enum UserRole {
      * <p>Owns the grant path <em>and</em> the revoke path for every privilege: role changes,
      * account suspension/reactivation and forced logout. Every action a security admin takes is
      * itself written to the append-only access-control audit trail. A security admin cannot mutate
-     * incidents — that separation is what makes the audit story credible.</p>
+     * an incident's operational workflow (verification, assignment, status) — that separation is
+     * what makes the audit story credible. The one deliberate exception is model training: marking
+     * up an incident's image with bounding boxes, flagging it for the YOLO retraining set and
+     * exporting that set are training-data curation, not incident workflow, and are reserved for
+     * {@code SECURITY_ADMIN} precisely so that municipality admins cannot shape what the detection
+     * model learns from their own incident queue.</p>
      */
     SECURITY_ADMIN
 }

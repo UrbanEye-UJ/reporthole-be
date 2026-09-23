@@ -4,6 +4,7 @@ import lombok.Builder;
 import za.co.urbaneye.reporthole.incident.entity.AssignmentStatus;
 import za.co.urbaneye.reporthole.incident.entity.IncidentSource;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
+import za.co.urbaneye.reporthole.training.entity.TrainingStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,5 +30,6 @@ public record IncidentResponseDTO(
         AssignmentStatus status,
         List<WorkflowEntryDTO> workflowHistory,
         boolean aiGenerated,
-        Double aiConfidence
+        Double aiConfidence,
+        TrainingStatus trainingStatus
 ) {}

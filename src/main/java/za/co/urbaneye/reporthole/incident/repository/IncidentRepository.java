@@ -9,7 +9,9 @@ import org.springframework.data.repository.query.Param;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.incident.entity.Incident;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
+import za.co.urbaneye.reporthole.training.entity.TrainingStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +41,13 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
 
     /** AI-generated, non-deleted incidents, newest first — candidates for the human-review queue. */
     List<Incident> findByAiGeneratedTrueAndDeletedFalseOrderByIncidentDateDesc();
+
+    /** Non-deleted incidents in the given training state, oldest flag first — the YOLO export input. */
+    List<Incident> findByTrainingStatusAndDeletedFalseOrderByTrainingFlaggedAtAsc(TrainingStatus status);
+
+    /** As above, restricted to incidents flagged at or after {@code since}. */
+    List<Incident> findByTrainingStatusAndDeletedFalseAndTrainingFlaggedAtGreaterThanEqualOrderByTrainingFlaggedAtAsc(
+            TrainingStatus status, LocalDateTime since);
 
     long countByDeletedFalse();
 

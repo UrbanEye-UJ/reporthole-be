@@ -18,30 +18,23 @@
 		}
 	}
 
-	# Dev/ops tooling — gated on being logged into the app as SECURITY_ADMIN, not a
-	# separate credential. forward_auth sends a subrequest (forwarding the original
-	# request's Cookie header) to the BE's /admin/security/check-access; 2xx lets the
-	# request through to pgAdmin/Dozzle, anything else is returned to the browser as-is
-	# and the dev tool is never reached. Same dual-upstream pattern as /api/* below so
-	# this still works when the backend runs natively (not containerized) in local dev.
+	# Dev/ops tooling — gated by Caddy's own basic_auth (DEV_TOOLS_USERNAME /
+	# DEV_TOOLS_PASSWORD_HASH in .env), not the app's login. Deliberately not the app's
+	# JWT/cookie auth: pgAdmin/Dozzle exist to debug the app, so their access gate can't
+	# depend on the app (or its database) being up. Caddy enforces this itself, so it
+	# holds even when reporthole-be/reporthole-ui are down or crash-looping.
 	@pgadmin path /pgadmin /pgadmin/*
 	handle @pgadmin {
-		forward_auth {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
-			uri /api/admin/security/check-access
-			lb_policy first
-			health_uri /api/actuator/health
-			health_interval 5s
+		basic_auth {
+			{$DEV_TOOLS_USERNAME} {$DEV_TOOLS_PASSWORD_HASH}
 		}
 		reverse_proxy reporthole-pgadmin:80
 	}
 
 	@logs path /logs /logs/*
 	handle @logs {
-		forward_auth {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
-			uri /api/admin/security/check-access
-			lb_policy first
-			health_uri /api/actuator/health
-			health_interval 5s
+		basic_auth {
+			{$DEV_TOOLS_USERNAME} {$DEV_TOOLS_PASSWORD_HASH}
 		}
 		reverse_proxy reporthole-dozzle:8080
 	}

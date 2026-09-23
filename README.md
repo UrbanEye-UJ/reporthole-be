@@ -62,10 +62,12 @@ See [`docs/DOCKER_SETUP.md`](docs/DOCKER_SETUP.md) to run the full stack (FE + B
 
 ## Dev/Ops Tooling
 
-- **pgAdmin** — browse/query the Postgres/PostGIS database. Local: `http://localhost/pgadmin`. Prod: `https://<CADDY_SITE_ADDRESS>/pgadmin`. Access requires being logged into the app as `SECURITY_ADMIN` (see below); pgAdmin then shows its own separate login on top (`PGADMIN_DEFAULT_EMAIL` / your `POSTGRES_PASSWORD`). Add the Postgres server once via service name `reporthole-postgres`, port `5432` — the saved connection persists across redeploys via the `pgadmin-data` volume.
-- **Dozzle** — live-tail logs from all containers (backend, frontend, Postgres, Caddy). Local: `http://localhost/logs`. Prod: `https://<CADDY_SITE_ADDRESS>/logs`. Same access rule as pgAdmin; Dozzle itself has no login of its own.
+- **pgAdmin** — browse/query the Postgres/PostGIS database. Local: `http://localhost/pgadmin`. Prod: `https://<CADDY_SITE_ADDRESS>/pgadmin`. Add the Postgres server once via service name `reporthole-postgres`, port `5432` — the saved connection persists across redeploys via the `pgadmin-data` volume.
+- **Dozzle** — live-tail logs from all containers (backend, frontend, Postgres, Caddy). Local: `http://localhost/logs`. Prod: `https://<CADDY_SITE_ADDRESS>/logs`.
 
-**Access control:** both are gated by Caddy's `forward_auth`, which checks `GET /api/admin/security/check-access` (`SecurityAdminController`) before proxying the request through — that endpoint 200s only for an authenticated `SECURITY_ADMIN` session, 403s otherwise. Nothing to configure in `.env` for this: it reuses the same login session as the rest of the app (the `reporthole_token` cookie), so access is automatic once logged in, and forced-logout/role-revoke/suspend cut off `/pgadmin`/`/logs` access immediately too, the same as anywhere else in the app. Reachable via two buttons in the security-admin dashboard sidebar ("Database Admin", "Live Logs"), which open in a new tab.
+**Access control:** both are gated by Caddy's own `basic_auth`, enforced directly in `infra/Caddyfile` — not the app's login. That's deliberate: these tools exist to debug the app, so their gate can't depend on the app (or its database) being reachable. It holds even when `reporthole-be`/`reporthole-ui` are down or crash-looping — Caddy itself enforces it, nothing else needs to be up. The credentials reuse existing `.env` values rather than adding new secrets: username is `MAIL_USERNAME`, password is `POSTGRES_PASSWORD`. Caddy needs a bcrypt hash, not a plaintext password, so `infra/caddy-entrypoint.sh` hashes `POSTGRES_PASSWORD` at container startup (`caddy hash-password`) before Caddy starts — nothing to generate or keep in sync by hand. pgAdmin also has its own separate login on top (same `PGADMIN_DEFAULT_EMAIL` / `POSTGRES_PASSWORD` pair) once past the Caddy prompt — so the Caddy gate, pgAdmin's own login, and the real database password are all the same secret today; worth knowing if you ever want to hand the Caddy credential to someone without also handing them the database. Dozzle has no login of its own beyond the Caddy prompt. Neither tool is published directly on the host — only reachable through Caddy, so the gate can't be bypassed by hitting a container's port directly. Previously reachable via two buttons in the security-admin dashboard sidebar ("Database Admin", "Live Logs") — removed since they weren't using the app's auth anyway, so a bookmark to the URLs above does the same job.
+
+*(Housekeeping note: `SecurityAdminController.checkAccess()` / `GET /admin/security/check-access`, and the matching cookie-auth fallback in `JwtAuthenticationFilter`, were built for an earlier `forward_auth`-based version of this gate — tied to the app's own SECURITY_ADMIN login rather than Caddy's `basic_auth`. `infra/Caddyfile` no longer calls it; unused today, left in place rather than removed in case that approach comes back.)*
 
 ---
 
@@ -98,8 +100,11 @@ The codebase is split into vertical slices, each containing its own controller, 
 | GET | `/incidents/my` | JWT | All incidents the user reported or confirmed |
 | GET | `/incidents/{id}` | JWT | Single incident by ID |
 | GET | `/incidents/events` | JWT (`?token=`) | SSE stream for real-time incident updates |
-| POST | `/devices/register` | JWT | Register a dashcam device, returns token |
-| POST | `/inference/frame` | Device token | Submit dashcam frame for ONNX inference |
+| POST | `/devices/token/generate` | JWT | Generate a dashcam device token |
+| GET | `/devices` | JWT | List the caller's registered devices (token preview only) |
+| DELETE | `/devices/token/{id}` | JWT | Revoke a device token |
+| POST | `/inference/predict` | Public | Run road-damage inference on an image (used by the dashcam page) |
+| POST | `/inference/frames` | Device token | Submit dashcam frame for async ONNX inference (not currently used by the dashcam page) |
 | GET | `/users/me` | JWT | Authenticated user profile |
 | PUT | `/users/me` | JWT | Update profile |
 | POST | `/auth/forgot-password` | Public | Request password-reset email |

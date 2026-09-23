@@ -98,6 +98,12 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: reporthole-caddy
+    # Entrypoint hashes POSTGRES_PASSWORD into DEV_TOOLS_PASSWORD_HASH at startup — see
+    # infra/caddy-entrypoint.sh. DEV_TOOLS_USERNAME reuses MAIL_USERNAME rather than a
+    # dedicated secret; both are what gate /pgadmin and /logs (infra/Caddyfile).
+    entrypoint: ["/bin/sh", "/caddy-entrypoint.sh"]
+    environment:
+      DEV_TOOLS_USERNAME: ${MAIL_USERNAME}
     ports:
       - "80:80"
       - "443:443"
@@ -107,13 +113,16 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy-entrypoint.sh:/caddy-entrypoint.sh:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:
       - reporthole-net
     restart: unless-stopped
 
-  # Dev/ops tooling — DB browser, routed through Caddy at /pgadmin (see infra/Caddyfile).
+  # Dev/ops tooling — DB browser, routed through Caddy at /pgadmin (see infra/Caddyfile),
+  # gated there by Caddy's own basic_auth. Deliberately not published directly on the host —
+  # that would bypass the basic_auth gate entirely.
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: reporthole-pgadmin
@@ -132,7 +141,9 @@ services:
         limits:
           memory: 512m
 
-  # Dev/ops tooling — live container log viewer, routed through Caddy at /logs.
+  # Dev/ops tooling — live container log viewer, routed through Caddy at /logs, gated
+  # there by Caddy's own basic_auth. Deliberately not published directly on the host —
+  # that would bypass the basic_auth gate entirely.
   dozzle:
     image: amir20/dozzle:latest
     container_name: reporthole-dozzle

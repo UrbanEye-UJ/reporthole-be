@@ -3,6 +3,7 @@ package za.co.urbaneye.reporthole.device.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
+import za.co.urbaneye.reporthole.device.dto.DeviceSummaryResponse;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.entity.DashcamDevice;
 import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
@@ -13,6 +14,7 @@ import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -67,6 +69,39 @@ public class DeviceServiceImpl implements IDeviceService {
                 "Generated a dashcam device token");
 
         return new DeviceTokenResponse(token);
+    }
+
+    /**
+     * Lists every device registered by the given user, newest first.
+     *
+     * <p>Only a short preview of each token is returned — the full value is
+     * shown to the user once, at generation time, and never again.</p>
+     *
+     * @param userId UUID string of the authenticated user
+     * @return the user's devices as {@link DeviceSummaryResponse}, newest first
+     */
+    @Override
+    public List<DeviceSummaryResponse> listDevices(String userId) {
+        UUID userUuid = UUID.fromString(userId);
+        return deviceRepository.findByUser_UserIdOrderByCreatedAtDesc(userUuid).stream()
+                .map(device -> new DeviceSummaryResponse(
+                        device.getDeviceId(),
+                        tokenPreview(device.getDeviceToken()),
+                        device.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    /**
+     * Reduces a device token to its last 8 characters, prefixed with dots, so
+     * a civilian can tell devices apart on the profile page without the full
+     * secret being exposed again after generation.
+     *
+     * @param token the full device token
+     * @return a display-safe preview, e.g. {@code "····a1b2c3d4"}
+     */
+    private String tokenPreview(String token) {
+        return token.length() <= 8 ? token : "····" + token.substring(token.length() - 8);
     }
 
     /**

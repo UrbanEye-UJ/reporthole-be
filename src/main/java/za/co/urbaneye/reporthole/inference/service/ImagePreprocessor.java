@@ -36,6 +36,30 @@ public final class ImagePreprocessor {
     private ImagePreprocessor() {}
 
     /**
+     * Geometry of a letterbox transform, kept so a box decoded in the {@value #TARGET_SIZE}×
+     * {@value #TARGET_SIZE} model-input space can be mapped back to the original image: invert
+     * with {@code (modelSpaceValue - pad) / scale}, then divide by {@code origWidth}/
+     * {@code origHeight} to normalise.
+     *
+     * @param scale     ratio the original image was shrunk by to fit within the target square
+     * @param padLeft   black-padding pixels to the left of the scaled image on the canvas
+     * @param padTop    black-padding pixels above the scaled image on the canvas
+     * @param origWidth  width, in pixels, of the source image before letterboxing
+     * @param origHeight height, in pixels, of the source image before letterboxing
+     */
+    public record LetterboxMeta(double scale, int padLeft, int padTop, int origWidth, int origHeight) {
+        public static LetterboxMeta of(int srcW, int srcH, int size) {
+            double scale = Math.min((double) size / srcW, (double) size / srcH);
+            int scaledW = (int) Math.round(srcW * scale);
+            int scaledH = (int) Math.round(srcH * scale);
+            return new LetterboxMeta(scale, (size - scaledW) / 2, (size - scaledH) / 2, srcW, srcH);
+        }
+    }
+
+    /** An ONNX-ready input tensor plus the letterbox geometry used to produce it. */
+    public record Preprocessed(OnnxTensor tensor, LetterboxMeta meta) {}
+
+    /**
      * Decodes the supplied image bytes and produces an ONNX tensor ready to
      * pass as the {@code "images"} input to the inference session.
      *
@@ -51,11 +75,13 @@ public final class ImagePreprocessor {
      *
      * @param imageBytes raw bytes of a JPEG or PNG image
      * @param env        the shared {@link OrtEnvironment} used to allocate the tensor
-     * @return an {@link OnnxTensor} of shape {@code [1, 3, 640, 640]}
+     * @return the tensor (shape {@code [1, 3, 640, 640]}) and the letterbox geometry used,
+     *         so a caller decoding bounding boxes from the model output can map them back to
+     *         the original image
      * @throws IOException  if the bytes cannot be decoded as an image
      * @throws OrtException if tensor allocation fails
      */
-    public static OnnxTensor preprocess(byte[] imageBytes, OrtEnvironment env)
+    public static Preprocessed preprocess(byte[] imageBytes, OrtEnvironment env)
             throws IOException, OrtException {
 
         BufferedImage original = ImageIO.read(new ByteArrayInputStream(imageBytes));
@@ -63,11 +89,13 @@ public final class ImagePreprocessor {
             throw new IOException("Could not decode image — unsupported format or corrupt data");
         }
 
-        BufferedImage letterboxed = letterbox(original, TARGET_SIZE);
+        LetterboxMeta meta = LetterboxMeta.of(original.getWidth(), original.getHeight(), TARGET_SIZE);
+        BufferedImage letterboxed = letterbox(original, TARGET_SIZE, meta);
         float[] chw = toChwFloat(letterboxed);
 
         FloatBuffer buffer = FloatBuffer.wrap(chw);
-        return OnnxTensor.createTensor(env, buffer, new long[]{1, 3, TARGET_SIZE, TARGET_SIZE});
+        OnnxTensor tensor = OnnxTensor.createTensor(env, buffer, new long[]{1, 3, TARGET_SIZE, TARGET_SIZE});
+        return new Preprocessed(tensor, meta);
     }
 
     /**
@@ -79,22 +107,19 @@ public final class ImagePreprocessor {
      * @return letterboxed {@link BufferedImage} with dimensions {@code size × size}
      */
     public static BufferedImage letterbox(BufferedImage src, int size) {
-        int srcW = src.getWidth();
-        int srcH = src.getHeight();
+        return letterbox(src, size, LetterboxMeta.of(src.getWidth(), src.getHeight(), size));
+    }
 
-        double scale = Math.min((double) size / srcW, (double) size / srcH);
-        int scaledW = (int) Math.round(srcW * scale);
-        int scaledH = (int) Math.round(srcH * scale);
-
-        int padLeft = (size - scaledW) / 2;
-        int padTop  = (size - scaledH) / 2;
+    private static BufferedImage letterbox(BufferedImage src, int size, LetterboxMeta meta) {
+        int scaledW = (int) Math.round(src.getWidth() * meta.scale());
+        int scaledH = (int) Math.round(src.getHeight() * meta.scale());
 
         BufferedImage canvas = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, size, size);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(src, padLeft, padTop, scaledW, scaledH, null);
+        g.drawImage(src, meta.padLeft(), meta.padTop(), scaledW, scaledH, null);
         g.dispose();
 
         return canvas;

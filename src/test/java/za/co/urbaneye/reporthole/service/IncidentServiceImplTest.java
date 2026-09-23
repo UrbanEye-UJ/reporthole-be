@@ -78,6 +78,9 @@ class IncidentServiceImplTest {
     @Mock
     private za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository municipalityRepository;
 
+    @Mock
+    private za.co.urbaneye.reporthole.training.repository.IssueAnnotationRepository issueAnnotationRepository;
+
     @InjectMocks
     private IncidentServiceImpl incidentService;
 
@@ -100,11 +103,19 @@ class IncidentServiceImplTest {
     }
 
     private IncidentRequestDTO buildRequest() {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, null, null, null, null, null);
     }
 
     private IncidentRequestDTO buildRequest(Double confidence) {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, confidence);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, confidence, null, null, null, null, null);
+    }
+
+    private IncidentRequestDTO buildRequest(LocalDateTime occurredAt) {
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, occurredAt, null, null, null, null);
+    }
+
+    private IncidentRequestDTO buildRequestWithBbox(Double confidence, Double x, Double y, Double w, Double h) {
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, confidence, null, x, y, w, h);
     }
 
     @Test
@@ -135,6 +146,51 @@ class IncidentServiceImplTest {
         assertThat(result.reporterCount()).isEqualTo(1);
         verify(incidentRepository).save(any());
         verify(incidentReporterRepository).save(any());
+    }
+
+    @Test
+    void createIncident_usesClientSuppliedOccurredAt_whenPresent() {
+        mockSecurityContext();
+        User user = stubUser();
+        LocalDateTime occurredAt = LocalDateTime.now().minusHours(2);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(incidentRepository.findNearestDuplicate(anyDouble(), anyDouble(), anyDouble(), any()))
+                .thenReturn(Optional.empty());
+        when(imageStorageService.saveBase64Image(any())).thenReturn("http://img/path.jpg");
+        when(incidentRepository.save(any())).thenAnswer(invocation -> {
+            Incident incident = invocation.getArgument(0);
+            incident.setIncidentId(UUID.randomUUID());
+            incident.setUser(user);
+            return incident;
+        });
+        when(incidentReporterRepository.save(any())).thenReturn(null);
+
+        IncidentResponseDTO result = incidentService.createIncident(buildRequest(occurredAt));
+
+        assertThat(result.incidentDate()).isEqualTo(occurredAt);
+    }
+
+    @Test
+    void createIncident_defaultsIncidentDateToNow_whenOccurredAtAbsent() {
+        mockSecurityContext();
+        User user = stubUser();
+        LocalDateTime before = LocalDateTime.now();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(incidentRepository.findNearestDuplicate(anyDouble(), anyDouble(), anyDouble(), any()))
+                .thenReturn(Optional.empty());
+        when(imageStorageService.saveBase64Image(any())).thenReturn("http://img/path.jpg");
+        when(incidentRepository.save(any())).thenAnswer(invocation -> {
+            Incident incident = invocation.getArgument(0);
+            incident.setIncidentId(UUID.randomUUID());
+            incident.setUser(user);
+            return incident;
+        });
+        when(incidentReporterRepository.save(any())).thenReturn(null);
+
+        IncidentResponseDTO result = incidentService.createIncident(buildRequest());
+        LocalDateTime after = LocalDateTime.now();
+
+        assertThat(result.incidentDate()).isBetween(before, after);
     }
 
     @Test
@@ -186,6 +242,60 @@ class IncidentServiceImplTest {
         assertThat(result.aiConfidence()).isEqualTo(0.68);
         assertThat(result.status()).isEqualTo(AssignmentStatus.REPORTED);
         verify(assignmentWorkflowRepository, never()).save(any());
+    }
+
+    @Test
+    void createIncident_autoCreatesTrainingAnnotation_whenAiGeneratedWithBbox() {
+        mockSecurityContext();
+        User user = stubUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(incidentRepository.findNearestDuplicate(anyDouble(), anyDouble(), anyDouble(), any()))
+                .thenReturn(Optional.empty());
+        when(imageStorageService.saveBase64Image(any())).thenReturn("http://img/path.jpg");
+        when(incidentRepository.save(any())).thenAnswer(invocation -> {
+            Incident incident = invocation.getArgument(0);
+            if (incident.getIncidentId() == null) incident.setIncidentId(UUID.randomUUID());
+            incident.setUser(user);
+            return incident;
+        });
+        when(incidentReporterRepository.save(any())).thenReturn(null);
+        when(incidentProperties.getAiApprovalThreshold()).thenReturn(0.80);
+
+        incidentService.createIncident(buildRequestWithBbox(0.92, 0.5, 0.4, 0.1, 0.2));
+
+        verify(issueAnnotationRepository).save(argThat(annotation ->
+                annotation.getClassLabel() == IssueType.POTHOLE
+                        && annotation.getXCenter() == 0.5
+                        && annotation.getYCenter() == 0.4
+                        && annotation.getWidth() == 0.1
+                        && annotation.getHeight() == 0.2
+                        && annotation.isAutoGenerated()
+                        && annotation.getAnnotatedBy() == null));
+        // incidentRepository.save is called twice: once to persist the new incident, once more
+        // to persist the FLAGGED training status set by the auto-annotation step.
+        verify(incidentRepository, times(2)).save(argThat(i -> true));
+    }
+
+    @Test
+    void createIncident_doesNotCreateTrainingAnnotation_whenBboxAbsent() {
+        mockSecurityContext();
+        User user = stubUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(incidentRepository.findNearestDuplicate(anyDouble(), anyDouble(), anyDouble(), any()))
+                .thenReturn(Optional.empty());
+        when(imageStorageService.saveBase64Image(any())).thenReturn("http://img/path.jpg");
+        when(incidentRepository.save(any())).thenAnswer(invocation -> {
+            Incident incident = invocation.getArgument(0);
+            incident.setIncidentId(UUID.randomUUID());
+            incident.setUser(user);
+            return incident;
+        });
+        when(incidentReporterRepository.save(any())).thenReturn(null);
+        when(incidentProperties.getAiApprovalThreshold()).thenReturn(0.80);
+
+        incidentService.createIncident(buildRequest(0.92));
+
+        verify(issueAnnotationRepository, never()).save(any());
     }
 
     @Test

@@ -1,7 +1,9 @@
 package za.co.urbaneye.reporthole.device.service.interfaces;
 
+import za.co.urbaneye.reporthole.device.dto.DeviceSummaryResponse;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -27,6 +29,15 @@ public interface IDeviceService {
      * @return a response containing the newly generated token
      */
     DeviceTokenResponse generateToken(String userId);
+
+    /**
+     * Lists every device the given user has registered, without exposing
+     * the full token again — only a short preview per device.
+     *
+     * @param userId the UUID string of the authenticated user
+     * @return the user's devices, newest first
+     */
+    List<DeviceSummaryResponse> listDevices(String userId);
 
     /**
      * Revokes (permanently deletes) a device token, so a lost or leaked

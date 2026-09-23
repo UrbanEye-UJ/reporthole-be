@@ -123,7 +123,7 @@ class DeviceIntegrationTest {
                 IssueType.POTHOLE, "Dashcam detected pothole", IncidentSource.DASHCAM,
                 -26.2041, 28.0473,
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
-                true, null, null
+                true, null, null, null, null, null, null, null
         );
 
         ResponseEntity<Map> resp = restTemplate.exchange(
@@ -147,6 +147,45 @@ class DeviceIntegrationTest {
         ResponseEntity<String> resp = restTemplate.exchange(
                 base("/devices/token/generate"),
                 HttpMethod.POST,
+                new HttpEntity<>(deviceTokenHeaders(deviceToken)),
+                String.class
+        );
+
+        assertTrue(
+                resp.getStatusCode() == HttpStatus.UNAUTHORIZED || resp.getStatusCode() == HttpStatus.FORBIDDEN,
+                "Expected 401 or 403 but got: " + resp.getStatusCode()
+        );
+    }
+
+    @Test
+    void listDevices_returnsGeneratedDevice_withPreviewNotFullToken() {
+        String deviceToken = generateDeviceToken();
+
+        ResponseEntity<Map> resp = restTemplate.exchange(
+                base("/devices"),
+                HttpMethod.GET,
+                new HttpEntity<>(jwtHeaders()),
+                Map.class
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        var devices = (java.util.List<?>) resp.getBody().get("data");
+        assertEquals(1, devices.size());
+        Map<?, ?> device = (Map<?, ?>) devices.get(0);
+        assertNotNull(device.get("deviceId"));
+        assertNotNull(device.get("tokenPreview"));
+        // The full token must never be echoed back in the list
+        assertFalse(device.get("tokenPreview").toString().equals(deviceToken));
+        assertTrue(deviceToken.endsWith(device.get("tokenPreview").toString().replace("····", "")));
+    }
+
+    @Test
+    void listDevices_isRejectedForDeviceToken_onlyJwtAllowed() {
+        String deviceToken = generateDeviceToken();
+
+        ResponseEntity<String> resp = restTemplate.exchange(
+                base("/devices"),
+                HttpMethod.GET,
                 new HttpEntity<>(deviceTokenHeaders(deviceToken)),
                 String.class
         );
