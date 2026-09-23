@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import za.co.urbaneye.reporthole.idempotency.service.interfaces.IIdempotencyService;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -53,6 +55,7 @@ public class IncidentController {
     private final IncidentSseService incidentSseService;
     private final IncidentClusteringService incidentClusteringService;
     private final IIncidentCommentService commentService;
+    private final IIdempotencyService idempotencyService;
 
     @PostMapping("/create")
     @Operation(
@@ -254,14 +257,22 @@ public class IncidentController {
     @PostMapping("/{id}/accept")
     @Operation(
             summary = "Accept assignment",
-            description = "Called by the assigned contractor to accept the incident, advancing its status to IN_PROGRESS."
+            description = "Called by the assigned contractor to accept the incident, advancing its status to IN_PROGRESS. " +
+                    "Optionally idempotent via an ?Idempotency-Key header — a repeated key returns the current " +
+                    "state without re-running the acceptance a second time, so an offline-queued retry can't " +
+                    "double-fire if the original request actually succeeded."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Assignment accepted"),
             @ApiResponse(responseCode = "400", description = "Assignment is not pending acceptance"),
             @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
     })
-    public ResponseEntity<AppResponse<IncidentResponseDTO>> acceptAssignment(@PathVariable UUID id) {
+    public ResponseEntity<AppResponse<IncidentResponseDTO>> acceptAssignment(
+            @PathVariable UUID id,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyService.tryRecord(idempotencyKey)) {
+            return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentById(id)));
+        }
         return ResponseEntity.ok(AppResponse.ok(incidentService.acceptAssignment(id)));
     }
 
@@ -270,7 +281,8 @@ public class IncidentController {
             summary = "Reject assignment",
             description = "Called by the assigned contractor to reject the incident, giving a required reason. " +
                     "The assignment is removed from the contractor and the incident reverts to VERIFIED so an " +
-                    "admin can assign it to someone else."
+                    "admin can assign it to someone else. Optionally idempotent via an Idempotency-Key header — " +
+                    "see /accept."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Assignment rejected"),
@@ -278,7 +290,11 @@ public class IncidentController {
             @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> rejectAssignment(
-            @PathVariable UUID id, @Valid @RequestBody RejectAssignmentRequest request) {
+            @PathVariable UUID id, @Valid @RequestBody RejectAssignmentRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyService.tryRecord(idempotencyKey)) {
+            return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentById(id)));
+        }
         return ResponseEntity.ok(AppResponse.ok(incidentService.rejectAssignment(id, request)));
     }
 
@@ -286,7 +302,8 @@ public class IncidentController {
     @Operation(
             summary = "Add progress update",
             description = "Called by the assigned contractor to post a free-text progress note while the incident is IN_PROGRESS. " +
-                    "Each note is appended to the incident's workflow history, visible to admins."
+                    "Each note is appended to the incident's workflow history, visible to admins. Optionally " +
+                    "idempotent via an Idempotency-Key header — see /accept."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Progress update recorded"),
@@ -294,7 +311,11 @@ public class IncidentController {
             @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> addProgressUpdate(
-            @PathVariable UUID id, @Valid @RequestBody ProgressUpdateRequest request) {
+            @PathVariable UUID id, @Valid @RequestBody ProgressUpdateRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyService.tryRecord(idempotencyKey)) {
+            return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentById(id)));
+        }
         return ResponseEntity.ok(AppResponse.ok(incidentService.addProgressUpdate(id, request.note())));
     }
 
@@ -311,7 +332,8 @@ public class IncidentController {
     @Operation(
             summary = "Resolve incident",
             description = "Marks the caller's assignment for this incident as RESOLVED, storing a repair photo and note. " +
-                    "Caller must be the contractor this incident is assigned to."
+                    "Caller must be the contractor this incident is assigned to. Optionally idempotent via an " +
+                    "Idempotency-Key header — see /accept."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Incident resolved"),
@@ -319,7 +341,11 @@ public class IncidentController {
             @ApiResponse(responseCode = "404", description = "No assignment found for this contractor and incident")
     })
     public ResponseEntity<AppResponse<IncidentResponseDTO>> resolveIncident(
-            @PathVariable UUID id, @Valid @RequestBody ResolveIncidentRequest request) {
+            @PathVariable UUID id, @Valid @RequestBody ResolveIncidentRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyService.tryRecord(idempotencyKey)) {
+            return ResponseEntity.ok(AppResponse.ok(incidentService.getIncidentById(id)));
+        }
         return ResponseEntity.ok(AppResponse.ok(incidentService.resolveIncident(id, request)));
     }
 

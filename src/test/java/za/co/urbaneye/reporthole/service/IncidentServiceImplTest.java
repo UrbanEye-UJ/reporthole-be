@@ -100,11 +100,15 @@ class IncidentServiceImplTest {
     }
 
     private IncidentRequestDTO buildRequest() {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, null);
     }
 
     private IncidentRequestDTO buildRequest(Double confidence) {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, confidence);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, confidence, null);
+    }
+
+    private IncidentRequestDTO buildRequest(LocalDateTime occurredAt) {
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole on Main Road", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, occurredAt);
     }
 
     @Test
@@ -135,6 +139,51 @@ class IncidentServiceImplTest {
         assertThat(result.reporterCount()).isEqualTo(1);
         verify(incidentRepository).save(any());
         verify(incidentReporterRepository).save(any());
+    }
+
+    @Test
+    void createIncident_usesClientSuppliedOccurredAt_whenPresent() {
+        mockSecurityContext();
+        User user = stubUser();
+        LocalDateTime occurredAt = LocalDateTime.now().minusHours(2);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(incidentRepository.findNearestDuplicate(anyDouble(), anyDouble(), anyDouble(), any()))
+                .thenReturn(Optional.empty());
+        when(imageStorageService.saveBase64Image(any())).thenReturn("http://img/path.jpg");
+        when(incidentRepository.save(any())).thenAnswer(invocation -> {
+            Incident incident = invocation.getArgument(0);
+            incident.setIncidentId(UUID.randomUUID());
+            incident.setUser(user);
+            return incident;
+        });
+        when(incidentReporterRepository.save(any())).thenReturn(null);
+
+        IncidentResponseDTO result = incidentService.createIncident(buildRequest(occurredAt));
+
+        assertThat(result.incidentDate()).isEqualTo(occurredAt);
+    }
+
+    @Test
+    void createIncident_defaultsIncidentDateToNow_whenOccurredAtAbsent() {
+        mockSecurityContext();
+        User user = stubUser();
+        LocalDateTime before = LocalDateTime.now();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(incidentRepository.findNearestDuplicate(anyDouble(), anyDouble(), anyDouble(), any()))
+                .thenReturn(Optional.empty());
+        when(imageStorageService.saveBase64Image(any())).thenReturn("http://img/path.jpg");
+        when(incidentRepository.save(any())).thenAnswer(invocation -> {
+            Incident incident = invocation.getArgument(0);
+            incident.setIncidentId(UUID.randomUUID());
+            incident.setUser(user);
+            return incident;
+        });
+        when(incidentReporterRepository.save(any())).thenReturn(null);
+
+        IncidentResponseDTO result = incidentService.createIncident(buildRequest());
+        LocalDateTime after = LocalDateTime.now();
+
+        assertThat(result.incidentDate()).isBetween(before, after);
     }
 
     @Test

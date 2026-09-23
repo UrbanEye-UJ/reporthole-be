@@ -18,16 +18,24 @@
 		}
 	}
 
-	# Dev/ops tooling — internal use only, no auth. Not gated on the app (pgAdmin/Dozzle
-	# come up independently of reporthole-be/reporthole-ui) and not gated on a login,
-	# so these stay reachable even when the app containers are down.
+	# Dev/ops tooling — gated by Caddy's own basic_auth (DEV_TOOLS_USERNAME /
+	# DEV_TOOLS_PASSWORD_HASH in .env), not the app's login. Deliberately not the app's
+	# JWT/cookie auth: pgAdmin/Dozzle exist to debug the app, so their access gate can't
+	# depend on the app (or its database) being up. Caddy enforces this itself, so it
+	# holds even when reporthole-be/reporthole-ui are down or crash-looping.
 	@pgadmin path /pgadmin /pgadmin/*
 	handle @pgadmin {
+		basic_auth {
+			{$DEV_TOOLS_USERNAME} {$DEV_TOOLS_PASSWORD_HASH}
+		}
 		reverse_proxy reporthole-pgadmin:80
 	}
 
 	@logs path /logs /logs/*
 	handle @logs {
+		basic_auth {
+			{$DEV_TOOLS_USERNAME} {$DEV_TOOLS_PASSWORD_HASH}
+		}
 		reverse_proxy reporthole-dozzle:8080
 	}
 

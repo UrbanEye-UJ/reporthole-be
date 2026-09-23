@@ -130,7 +130,7 @@ public class IncidentServiceImpl implements IncidentService {
         incident.setIncidentType(request.incidentType());
         incident.setDescription(request.description());
         incident.setSource(request.source());
-        incident.setIncidentDate(LocalDateTime.now());
+        incident.setIncidentDate(request.occurredAt() != null ? request.occurredAt() : LocalDateTime.now());
         incident.setLocation(point);
         incident.setImageUrl(imageUrl);
         incident.setLocationAddress(request.locationAddress());
