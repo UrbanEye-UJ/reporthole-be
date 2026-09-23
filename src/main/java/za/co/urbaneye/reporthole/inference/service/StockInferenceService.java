@@ -122,7 +122,7 @@ public class StockInferenceService implements IInferenceService {
         log.debug("Running stock inference on {} byte image", imageBytes.length);
         long start = System.currentTimeMillis();
 
-        try (OnnxTensor input = ImagePreprocessor.preprocess(imageBytes, env);
+        try (OnnxTensor input = ImagePreprocessor.preprocess(imageBytes, env).tensor();
              OrtSession.Result results = session.run(Map.of("images", input))) {
 
             OnnxTensor output = (OnnxTensor) results.get("output0").orElseThrow(
@@ -189,7 +189,7 @@ public class StockInferenceService implements IInferenceService {
         double confidence = Math.round(bestConf * 10_000.0) / 10_000.0;
         String label = bestRawLabel.toUpperCase().replace(" ", "_");
 
-        return new InferenceResult(true, label, bestRawLabel, confidence, InferenceSource.STOCK);
+        return new InferenceResult(true, label, bestRawLabel, confidence, InferenceSource.STOCK, null, null, null, null);
     }
 
     /**

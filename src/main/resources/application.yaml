@@ -59,7 +59,7 @@ inference:
   auto-log-threshold: 0.75
 
 incident:
-  ai-approval-threshold: 0.80
+  ai-approval-threshold: 0.75
 
 mail:
   from: reporthole.noreply@gmail.com

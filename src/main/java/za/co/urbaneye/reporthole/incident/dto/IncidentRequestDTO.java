@@ -39,5 +39,18 @@ public record IncidentRequestDTO(
          * dashcam detection captured in a signal dead zone and replayed once reconnected) — without
          * this, such a report would be timestamped at sync time instead of when it actually occurred.
          */
-        LocalDateTime occurredAt
+        LocalDateTime occurredAt,
+
+        /**
+         * The AI detector's own bounding box for this detection, normalised [0.0, 1.0] and
+         * centre-based (YOLO format) relative to the submitted image — as returned by
+         * {@code POST /inference/predict}'s {@code detection} payload. Set only alongside
+         * {@link #confidence}; used to automatically create an {@code IssueAnnotation} training
+         * label for the incident. Null for manual reports, or if the frontend simply doesn't
+         * forward it (creation still proceeds normally either way).
+         */
+        Double bboxXCenter,
+        Double bboxYCenter,
+        Double bboxWidth,
+        Double bboxHeight
 ) {}

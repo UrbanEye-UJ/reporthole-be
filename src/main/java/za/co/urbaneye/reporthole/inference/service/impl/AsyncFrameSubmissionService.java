@@ -188,7 +188,11 @@ public class AsyncFrameSubmissionService implements IFrameSubmissionService {
                     true,  // forceCreate — bypass duplicate check for dashcam frames
                     null,
                     result.confidence(),
-                    null   // occurredAt — this path isn't currently used by the live frontend; server-stamped
+                    null,  // occurredAt — this path isn't currently used by the live frontend; server-stamped
+                    result.bboxXCenter(),
+                    result.bboxYCenter(),
+                    result.bboxWidth(),
+                    result.bboxHeight()
             );
 
             incidentService.createIncident(request);

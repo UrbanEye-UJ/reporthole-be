@@ -121,7 +121,8 @@ class OnnxInferenceServiceTest {
             public List<InferenceResult> predict(byte[] imageBytes) throws IOException, OrtException {
                 try (OrtSession.Result results = mockSession.run(anyMap())) {
                     OnnxTensor output = (OnnxTensor) results.get("output0").orElseThrow();
-                    return List.of(extractBestDetection(output.getFloatBuffer()));
+                    return List.of(extractBestDetection(output.getFloatBuffer(),
+                            new za.co.urbaneye.reporthole.inference.service.ImagePreprocessor.LetterboxMeta(1.0, 0, 0, 640, 640)));
                 }
             }
         };

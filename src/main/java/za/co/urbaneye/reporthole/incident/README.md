@@ -123,7 +123,7 @@ incidents (currently: dashcam frames routed `AUTO_LOG` or `ESCALATE` by the `inf
 `RoutingDecision`; null for manual reports). When present, `IncidentServiceImpl.createIncident`:
 
 1. Sets `Incident.aiGenerated = true` and `Incident.aiConfidence = confidence`.
-2. Runs `AiReviewDecision.from(confidence, IncidentProperties.aiApprovalThreshold)` (default `0.80`):
+2. Runs `AiReviewDecision.from(confidence, IncidentProperties.aiApprovalThreshold)` (default `0.75`):
    - **`AUTO_APPROVED`** — an `AssignmentWorkflow` entry is written immediately with status
      `VERIFIED`, skipping manual admin verification.
    - **`PENDING_REVIEW`** — the incident is left as `REPORTED`, i.e. it surfaces in the normal

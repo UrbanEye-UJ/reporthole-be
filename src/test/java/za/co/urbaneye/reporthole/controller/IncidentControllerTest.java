@@ -74,7 +74,7 @@ class IncidentControllerTest {
     private IIdempotencyService idempotencyService;
 
     private IncidentRequestDTO buildRequest() {
-        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, null);
+        return new IncidentRequestDTO(IssueType.POTHOLE, "Big pothole", IncidentSource.MANUAL, -26.2041, 28.0473, "base64data", false, null, null, null, null, null, null, null);
     }
 
     @Test

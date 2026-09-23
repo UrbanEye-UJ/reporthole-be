@@ -16,6 +16,12 @@ import za.co.urbaneye.reporthole.inference.entity.InferenceSource;
  * @param confidence best detection confidence in [0.0, 1.0]; {@code null} when not detected
  * @param rawLabel   raw model class name; {@code null} when not detected
  * @param source     which model produced this detection
+ * @param bboxXCenter normalised [0.0, 1.0] box centre X relative to the original image
+ *                    (centre-based YOLO format); {@code null} when not detected or the
+ *                    producing model doesn't decode boxes (e.g. the stock model)
+ * @param bboxYCenter normalised [0.0, 1.0] box centre Y relative to the original image
+ * @param bboxWidth   normalised [0.0, 1.0] box width relative to the original image
+ * @param bboxHeight  normalised [0.0, 1.0] box height relative to the original image
  *
  * @author Refentse
  * @since 1.0
@@ -24,5 +30,9 @@ public record DetectionDTO(
         String label,
         Double confidence,
         String rawLabel,
-        InferenceSource source
+        InferenceSource source,
+        Double bboxXCenter,
+        Double bboxYCenter,
+        Double bboxWidth,
+        Double bboxHeight
 ) {}

@@ -20,6 +20,12 @@ import za.co.urbaneye.reporthole.inference.service.OnnxInferenceService;
  * @param confidence best detection confidence in the range [0.0, 1.0], rounded to 4 decimal places;
  *                   {@code 0.0} when {@code detected} is {@code false}
  * @param source     which model produced this result
+ * @param bboxXCenter normalised [0.0, 1.0] box centre X relative to the original (pre-letterbox)
+ *                    image, centre-based YOLO format; {@code null} when {@code detected} is
+ *                    {@code false} or the producing model doesn't decode boxes (e.g. the stock model)
+ * @param bboxYCenter normalised [0.0, 1.0] box centre Y relative to the original image
+ * @param bboxWidth   normalised [0.0, 1.0] box width relative to the original image
+ * @param bboxHeight  normalised [0.0, 1.0] box height relative to the original image
  *
  * @author Refentse
  * @since 1.0
@@ -29,7 +35,11 @@ public record InferenceResult(
         String label,
         String rawLabel,
         double confidence,
-        InferenceSource source
+        InferenceSource source,
+        Double bboxXCenter,
+        Double bboxYCenter,
+        Double bboxWidth,
+        Double bboxHeight
 ) {
 
     /**
@@ -48,6 +58,6 @@ public record InferenceResult(
      * @return {@link InferenceResult} with {@code detected=false} and all other fields null/zero
      */
     public static InferenceResult empty(InferenceSource source) {
-        return new InferenceResult(false, null, null, 0.0, source);
+        return new InferenceResult(false, null, null, 0.0, source, null, null, null, null);
     }
 }
