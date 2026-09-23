@@ -13,6 +13,7 @@ import za.co.urbaneye.reporthole.admin.security.exception.SecurityAdminException
 import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
 import za.co.urbaneye.reporthole.global.entity.ErrorObject;
 import za.co.urbaneye.reporthole.incident.exception.AssignmentException;
+import za.co.urbaneye.reporthole.training.exception.TrainingException;
 import za.co.urbaneye.reporthole.user.exception.UserServiceException;
 
 import java.time.LocalDateTime;
@@ -256,6 +257,36 @@ public class GlobalExceptionHandler {
         if (msg.contains("not found")) {
             status = HttpStatus.NOT_FOUND;
         } else if (msg.contains("Only admins")) {
+            status = HttpStatus.FORBIDDEN;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
+        }
+
+        ErrorObject response = new ErrorObject(ex.getMessage(), status.value(), LocalDateTime.now());
+        return new ResponseEntity<>(response, status);
+    }
+
+    /**
+     * Handles YOLO annotation / training-flag / export rule violations.
+     *
+     * <p>Returns:</p>
+     * <ul>
+     *     <li>404 Not Found — incident/annotation missing, or nothing flagged to export</li>
+     *     <li>403 Forbidden — caller is not an admin, or the incident is in another municipality</li>
+     *     <li>400 Bad Request — invalid box, image-size mismatch, or flagging with no annotations</li>
+     * </ul>
+     *
+     * @param ex the thrown {@link TrainingException}
+     * @return structured error response with relevant HTTP status
+     */
+    @ExceptionHandler(TrainingException.class)
+    public ResponseEntity<ErrorObject> handleTrainingException(TrainingException ex) {
+        final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+
+        HttpStatus status;
+        if (msg.contains("not found") || msg.contains("were found to export")) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (msg.contains("Only admins") || msg.contains("different municipality")) {
             status = HttpStatus.FORBIDDEN;
         } else {
             status = HttpStatus.BAD_REQUEST;

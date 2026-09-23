@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.locationtech.jts.geom.Point;
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
+import za.co.urbaneye.reporthole.training.entity.TrainingStatus;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 
@@ -43,7 +44,7 @@ public class Incident {
     @Column(name = "INCIDENT_TYPE", nullable = false)
     private IssueType incidentType;
 
-    @Column(name = "INCIDENT_DESCRIPTION", nullable = false, length = 300)
+    @Column(name = "INCIDENT_DESCRIPTION", length = 300)
     private String description;
 
     @Enumerated(EnumType.STRING)
@@ -79,6 +80,33 @@ public class Incident {
 
     @Column(name = "INCIDENT_AI_CONFIDENCE")
     private Double aiConfidence;
+
+    /** Natural pixel size of the stored image; recorded the first time an admin annotates it. */
+    @Column(name = "INCIDENT_IMAGE_WIDTH")
+    private Integer imageWidth;
+
+    @Column(name = "INCIDENT_IMAGE_HEIGHT")
+    private Integer imageHeight;
+
+    /**
+     * YOLO retraining pipeline state — independent of the incident workflow status. Deliberately
+     * left nullable rather than backed by a SQL default like {@link #aiGenerated}: a raw
+     * {@code columnDefinition} of "varchar(...)" round-trips through Postgres as
+     * "character varying(...)", so on every later boot {@code ddl-auto: update} sees a mismatch
+     * against its own columnDefinition text and reissues an ALTER combining SET DATA TYPE with
+     * NOT NULL/DEFAULT — which Postgres rejects. A {@code null} here just means NOT_FLAGGED
+     * (existing rows read that way; every codepath compares for equality with {@code FLAGGED}, so
+     * it's null-safe); new incidents always get the enum value explicitly. Add a Flyway migration
+     * when Flyway is introduced.
+     */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "INCIDENT_TRAINING_STATUS", length = 20)
+    private TrainingStatus trainingStatus = TrainingStatus.NOT_FLAGGED;
+
+    /** When the incident was last flagged for training; used by the export's {@code since} filter. */
+    @Column(name = "INCIDENT_TRAINING_FLAGGED_AT")
+    private LocalDateTime trainingFlaggedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "INCIDENT_USER_ID", nullable = false)

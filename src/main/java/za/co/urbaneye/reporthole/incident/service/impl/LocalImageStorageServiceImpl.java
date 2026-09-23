@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -84,6 +85,18 @@ public class LocalImageStorageServiceImpl implements ImageStorageService {
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to save image", e);
+        }
+    }
+
+    @Override
+    public byte[] readImage(String imageUrl) {
+        // Only ever resolve the final path segment inside uploadDir, so a tampered stored URL
+        // can't read outside the upload directory.
+        String fileName = Paths.get(imageUrl.substring(imageUrl.lastIndexOf('/') + 1)).getFileName().toString();
+        try {
+            return Files.readAllBytes(Paths.get(uploadDir).resolve(fileName));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read image " + fileName, e);
         }
     }
 }
