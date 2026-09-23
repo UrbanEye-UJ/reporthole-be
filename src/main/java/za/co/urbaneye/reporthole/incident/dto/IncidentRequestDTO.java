@@ -9,7 +9,6 @@ public record IncidentRequestDTO(
         @NotNull(message = "Issue type is required")
         IssueType incidentType,
 
-        @NotBlank(message = "Description is required")
         String description,
 
         @NotNull(message = "Source is required")

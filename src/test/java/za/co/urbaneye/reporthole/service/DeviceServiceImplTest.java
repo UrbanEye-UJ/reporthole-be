@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
+import za.co.urbaneye.reporthole.device.dto.DeviceSummaryResponse;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.entity.DashcamDevice;
 import za.co.urbaneye.reporthole.device.exception.DeviceServiceException;
@@ -16,6 +17,8 @@ import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -96,5 +99,35 @@ class DeviceServiceImplTest {
                 .hasMessageContaining(USER_ID.toString());
 
         verify(deviceRepository, never()).save(any());
+    }
+
+    @Test
+    void listDevices_returnsPreviewsOnly_neverTheFullToken() {
+        User user = stubUser();
+        DashcamDevice device = DashcamDevice.builder()
+                .deviceId(UUID.fromString("00000000-0000-0000-0000-0000000000aa"))
+                .deviceToken("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+                .user(user)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+        when(deviceRepository.findByUser_UserIdOrderByCreatedAtDesc(USER_ID))
+                .thenReturn(List.of(device));
+
+        List<DeviceSummaryResponse> result = deviceService.listDevices(USER_ID.toString());
+
+        assertThat(result).hasSize(1);
+        DeviceSummaryResponse summary = result.get(0);
+        assertThat(summary.deviceId()).isEqualTo(device.getDeviceId());
+        assertThat(summary.createdAt()).isEqualTo(device.getCreatedAt());
+        assertThat(summary.tokenPreview()).isEqualTo("····eeeeeeee");
+        assertThat(summary.tokenPreview()).doesNotContain(device.getDeviceToken());
+    }
+
+    @Test
+    void listDevices_returnsEmptyList_whenUserHasNoDevices() {
+        when(deviceRepository.findByUser_UserIdOrderByCreatedAtDesc(USER_ID))
+                .thenReturn(List.of());
+
+        assertThat(deviceService.listDevices(USER_ID.toString())).isEmpty();
     }
 }

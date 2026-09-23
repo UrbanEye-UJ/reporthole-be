@@ -39,6 +39,7 @@ import za.co.urbaneye.reporthole.incident.repository.IncidentReporterRepository;
 import za.co.urbaneye.reporthole.incident.service.interfaces.ImageStorageService;
 import za.co.urbaneye.reporthole.incident.service.interfaces.IncidentService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
+import za.co.urbaneye.reporthole.training.entity.TrainingStatus;
 import za.co.urbaneye.reporthole.notification.service.interfaces.INotificationService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
@@ -120,6 +121,7 @@ public class IncidentServiceImpl implements IncidentService {
                     .status(resolveStatus(existing.getIncidentId()))
                     .aiGenerated(existing.isAiGenerated())
                     .aiConfidence(existing.getAiConfidence())
+                    .trainingStatus(orNotFlagged(existing.getTrainingStatus()))
                     .build();
         }
 
@@ -176,6 +178,7 @@ public class IncidentServiceImpl implements IncidentService {
                 .status(status)
                 .aiGenerated(saved.isAiGenerated())
                 .aiConfidence(saved.getAiConfidence())
+                .trainingStatus(orNotFlagged(saved.getTrainingStatus()))
                 .build();
     }
 
@@ -240,6 +243,7 @@ public class IncidentServiceImpl implements IncidentService {
                 .status(resolveStatus(incidentId))
                 .aiGenerated(incident.isAiGenerated())
                 .aiConfidence(incident.getAiConfidence())
+                .trainingStatus(orNotFlagged(incident.getTrainingStatus()))
                 .build();
     }
 
@@ -773,7 +777,13 @@ public class IncidentServiceImpl implements IncidentService {
                 .workflowHistory(history)
                 .aiGenerated(incident.isAiGenerated())
                 .aiConfidence(incident.getAiConfidence())
+                .trainingStatus(orNotFlagged(incident.getTrainingStatus()))
                 .build();
+    }
+
+    /** {@link Incident#getTrainingStatus()} is nullable at the DB level (see its Javadoc); the API always reports a concrete value. */
+    private static TrainingStatus orNotFlagged(TrainingStatus status) {
+        return status != null ? status : TrainingStatus.NOT_FLAGGED;
     }
 
     /** Human-readable issue type label, e.g. "POTHOLE" → "Pothole". */

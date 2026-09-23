@@ -98,8 +98,11 @@ The codebase is split into vertical slices, each containing its own controller, 
 | GET | `/incidents/my` | JWT | All incidents the user reported or confirmed |
 | GET | `/incidents/{id}` | JWT | Single incident by ID |
 | GET | `/incidents/events` | JWT (`?token=`) | SSE stream for real-time incident updates |
-| POST | `/devices/register` | JWT | Register a dashcam device, returns token |
-| POST | `/inference/frame` | Device token | Submit dashcam frame for ONNX inference |
+| POST | `/devices/token/generate` | JWT | Generate a dashcam device token |
+| GET | `/devices` | JWT | List the caller's registered devices (token preview only) |
+| DELETE | `/devices/token/{id}` | JWT | Revoke a device token |
+| POST | `/inference/predict` | Public | Run road-damage inference on an image (used by the dashcam page) |
+| POST | `/inference/frames` | Device token | Submit dashcam frame for async ONNX inference (not currently used by the dashcam page) |
 | GET | `/users/me` | JWT | Authenticated user profile |
 | PUT | `/users/me` | JWT | Update profile |
 | POST | `/auth/forgot-password` | Public | Request password-reset email |

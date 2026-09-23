@@ -11,16 +11,19 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import za.co.urbaneye.reporthole.device.controller.DeviceController;
+import za.co.urbaneye.reporthole.device.dto.DeviceSummaryResponse;
 import za.co.urbaneye.reporthole.device.dto.DeviceTokenResponse;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.device.service.interfaces.IDeviceService;
 import za.co.urbaneye.reporthole.security.Jwt;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -88,5 +91,29 @@ class DeviceControllerTest {
                         .with(civilianAuth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deviceToken").value(FAKE_TOKEN));
+    }
+
+    @Test
+    void listDevices_returns200WithDeviceList_whenAuthenticated() throws Exception {
+        UUID deviceId = UUID.fromString("00000000-0000-0000-0000-0000000000aa");
+        DeviceSummaryResponse summary = new DeviceSummaryResponse(
+                deviceId, "····eeeeeeee", LocalDateTime.of(2026, 1, 1, 12, 0));
+        when(deviceService.listDevices(USER_ID.toString())).thenReturn(List.of(summary));
+
+        mockMvc.perform(get("/devices")
+                        .with(civilianAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].deviceId").value(deviceId.toString()))
+                .andExpect(jsonPath("$.data[0].tokenPreview").value("····eeeeeeee"));
+    }
+
+    @Test
+    void listDevices_returnsEmptyArray_whenUserHasNoDevices() throws Exception {
+        when(deviceService.listDevices(USER_ID.toString())).thenReturn(List.of());
+
+        mockMvc.perform(get("/devices")
+                        .with(civilianAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
     }
 }
