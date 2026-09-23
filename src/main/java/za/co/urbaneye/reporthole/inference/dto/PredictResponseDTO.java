@@ -44,6 +44,6 @@ public record PredictResponseDTO(
      * @return response with {@code detected=false} and all detection fields {@code null}
      */
     public static PredictResponseDTO empty() {
-        return new PredictResponseDTO(false, new DetectionDTO(null, null, null, null), null);
+        return new PredictResponseDTO(false, new DetectionDTO(null, null, null, null, null, null, null, null), null);
     }
 }

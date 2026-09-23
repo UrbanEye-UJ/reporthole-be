@@ -110,18 +110,22 @@ public class InferenceController {
         InferenceResult stock = results.size() > 1 ? results.get(1) : null;
 
         DetectionDTO stockDetection = (stock != null && stock.detected())
-                ? new DetectionDTO(stock.label(), stock.confidence(), stock.rawLabel(), stock.source())
+                ? new DetectionDTO(stock.label(), stock.confidence(), stock.rawLabel(), stock.source(), null, null, null, null)
                 : null;
 
         if (!primary.detected()) {
-            return ResponseEntity.ok(new PredictResponseDTO(false, new DetectionDTO(null, null, null, null), stockDetection));
+            return ResponseEntity.ok(new PredictResponseDTO(false, new DetectionDTO(null, null, null, null, null, null, null, null), stockDetection));
         }
 
         DetectionDTO detection = new DetectionDTO(
                 primary.label(),
                 primary.confidence(),
                 primary.rawLabel(),
-                primary.source()
+                primary.source(),
+                primary.bboxXCenter(),
+                primary.bboxYCenter(),
+                primary.bboxWidth(),
+                primary.bboxHeight()
         );
         return ResponseEntity.ok(new PredictResponseDTO(true, detection, stockDetection));
     }

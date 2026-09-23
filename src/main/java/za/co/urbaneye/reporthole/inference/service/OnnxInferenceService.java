@@ -39,14 +39,15 @@ import java.util.Set;
  *   <li>Input name: {@code images}, shape {@code [1, 3, 640, 640]}, float32 NCHW,
  *       pixel values normalised to [0.0, 1.0].</li>
  *   <li>Output name: {@code output0}, shape {@code [1, 28, 8400]} — first 4 values
- *       per anchor are bounding-box coordinates (ignored here); values 4–27 are
+ *       per anchor are bounding-box coordinates; values 4–27 are
  *       raw class scores for the 24 model classes.</li>
  * </ul>
  *
- * <p><b>Confidence extraction:</b> No bounding-box decoding or NMS is performed.
- * For each of the 8400 anchors the maximum raw class score across the 24 classes
- * is found. The highest score across all anchors (excluding non-damage classes) is
- * returned as the detection confidence.</p>
+ * <p><b>Confidence extraction:</b> No NMS is performed. For each of the 8400 anchors the
+ * maximum raw class score across the 24 classes is found. The highest score across all anchors
+ * (excluding non-damage classes) is returned as the detection confidence, along with that
+ * anchor's bounding box mapped back into the original image's coordinate space — see
+ * {@link #extractBestDetection(FloatBuffer, ImagePreprocessor.LetterboxMeta)}.</p>
  *
  * @author Refentse
  * @since 1.0
@@ -184,13 +185,14 @@ public class OnnxInferenceService implements IInferenceService {
         log.debug("Running inference on {} byte image", imageBytes.length);
         long start = System.currentTimeMillis();
 
-        try (OnnxTensor input = ImagePreprocessor.preprocess(imageBytes, env);
+        ImagePreprocessor.Preprocessed preprocessed = ImagePreprocessor.preprocess(imageBytes, env);
+        try (OnnxTensor input = preprocessed.tensor();
              OrtSession.Result results = session.run(Map.of("images", input))) {
 
             OnnxTensor output = (OnnxTensor) results.get("output0").orElseThrow(
                     () -> new OrtException("Model did not produce 'output0'"));
 
-            InferenceResult result = extractBestDetection(output.getFloatBuffer());
+            InferenceResult result = extractBestDetection(output.getFloatBuffer(), preprocessed.meta());
             long elapsed = System.currentTimeMillis() - start;
 
             if (result.detected()) {
@@ -205,19 +207,27 @@ public class OnnxInferenceService implements IInferenceService {
     }
 
     /**
-     * Extracts the highest-confidence non-damage detection from the raw model output buffer.
+     * Extracts the highest-confidence non-damage detection from the raw model output buffer,
+     * decoding its bounding box back into the original (pre-letterbox) image's coordinate space.
      *
      * <p>Buffer layout for shape {@code [1, 28, 8400]} in row-major order:
-     * {@code buffer[channel * 8400 + anchor]}. Channels 0–3 are bbox coordinates
-     * (skipped); channels 4–27 are raw class scores for the 24 model classes.</p>
+     * {@code buffer[channel * 8400 + anchor]}. Channels 0–3 are bbox coordinates — YOLOv8's ONNX
+     * export emits these already decoded to centre-based {@code [x, y, w, h]} pixel coordinates in
+     * the {@value ImagePreprocessor#TARGET_SIZE}×{@value ImagePreprocessor#TARGET_SIZE} model-input
+     * space (not normalised, and not raw grid/anchor offsets) — no further YOLO head decoding is
+     * needed, only inverting the letterbox resize/pad done in {@link ImagePreprocessor}; channels
+     * 4–27 are raw class scores for the 24 model classes.</p>
      *
      * @param buffer flattened float buffer of the {@code output0} tensor
+     * @param letterboxMeta geometry of the letterbox transform applied before inference, used to
+     *                      map the winning anchor's box back to the original image
      * @return best detection, or {@link InferenceResult#empty()} if nothing found
      */
-    public InferenceResult extractBestDetection(FloatBuffer buffer) {
+    public InferenceResult extractBestDetection(FloatBuffer buffer, ImagePreprocessor.LetterboxMeta letterboxMeta) {
         // Anchors with all-zero class scores are not detections; initialise at 0 so they are excluded.
         float bestConf = 0.0f;
         String bestRawLabel = null;
+        int bestAnchor = -1;
 
         for (int anchor = 0; anchor < NUM_ANCHORS; anchor++) {
             float anchorBest = 0.0f;
@@ -240,6 +250,7 @@ public class OnnxInferenceService implements IInferenceService {
             if (anchorBest > bestConf) {
                 bestConf = anchorBest;
                 bestRawLabel = rawLabel;
+                bestAnchor = anchor;
             }
         }
 
@@ -252,10 +263,39 @@ public class OnnxInferenceService implements IInferenceService {
                 bestRawLabel.toUpperCase().replace(" ", "_"));
         double confidence = Math.round(bestConf * 10_000.0) / 10_000.0;
 
-        log.debug("extractBestDetection — best anchor: rawLabel={}, mappedLabel={}, confidence={}",
-                bestRawLabel, mappedLabel, confidence);
+        double[] box = decodeBoxToOriginalImage(buffer, bestAnchor, letterboxMeta);
 
-        return new InferenceResult(true, mappedLabel, bestRawLabel, confidence, InferenceSource.CUSTOM);
+        log.debug("extractBestDetection — best anchor: rawLabel={}, mappedLabel={}, confidence={}, box={}",
+                bestRawLabel, mappedLabel, confidence, box);
+
+        return new InferenceResult(true, mappedLabel, bestRawLabel, confidence, InferenceSource.CUSTOM,
+                box[0], box[1], box[2], box[3]);
+    }
+
+    /**
+     * Reads the winning anchor's raw box (channels 0–3, centre-based pixel coordinates in the
+     * {@value ImagePreprocessor#TARGET_SIZE}-square model-input space) and inverts the letterbox
+     * transform to express it as a normalised [0.0, 1.0] centre-based box relative to the original
+     * image — {@code (modelSpace - pad) / scale}, then divided by the original dimension.
+     *
+     * @return {@code [xCenter, yCenter, width, height]}, each clamped to [0.0, 1.0]
+     */
+    private double[] decodeBoxToOriginalImage(FloatBuffer buffer, int anchor, ImagePreprocessor.LetterboxMeta meta) {
+        float cx = buffer.get(anchor);
+        float cy = buffer.get(NUM_ANCHORS + anchor);
+        float w = buffer.get(2 * NUM_ANCHORS + anchor);
+        float h = buffer.get(3 * NUM_ANCHORS + anchor);
+
+        double xCenter = (cx - meta.padLeft()) / meta.scale() / meta.origWidth();
+        double yCenter = (cy - meta.padTop()) / meta.scale() / meta.origHeight();
+        double width = w / meta.scale() / meta.origWidth();
+        double height = h / meta.scale() / meta.origHeight();
+
+        return new double[]{clamp01(xCenter), clamp01(yCenter), clamp01(width), clamp01(height)};
+    }
+
+    private static double clamp01(double v) {
+        return Math.max(0.0, Math.min(1.0, v));
     }
 
     /**
