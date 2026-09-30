@@ -1,0 +1,42 @@
+name: Backup
+
+# Nightly, plus on-demand. Manual runs are actor-gated like Deploy; the schedule
+# always runs regardless of who last touched the cron line.
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC daily
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    name: Backup Postgres
+    if: github.event_name == 'schedule' || contains(fromJSON('["Pule-Prince", "refentse1"]'), github.actor)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.OCI_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.OCI_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run backup.sh on the server
+        id: backup
+        run: |
+          DUMP_PATH=$(ssh -i ~/.ssh/deploy_key ${{ secrets.OCI_SSH_USER }}@${{ secrets.OCI_HOST }} \
+            "bash /home/ubuntu/reporthole-be/scripts/backup.sh")
+          echo "dump_path=$DUMP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the dump off the server
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            "${{ secrets.OCI_SSH_USER }}@${{ secrets.OCI_HOST }}:${{ steps.backup.outputs.dump_path }}" \
+            ./reporthole-backup.sql.gz
+
+      - name: Upload as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporthole-backup-${{ github.run_id }}
+          path: reporthole-backup.sql.gz
+          retention-days: 30

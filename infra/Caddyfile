@@ -1,19 +1,24 @@
 {$CADDY_SITE_ADDRESS} {
 	tls {$CADDY_TLS_MODE}
 
+	# /api/* is owned by the Next.js BFF (app/api/[...path]/route.ts and the dedicated
+	# auth/login, auth/logout, image-proxy handlers) — it reads the HttpOnly token cookie
+	# server-side and forwards to the backend itself via INTERNAL_API_URL. Caddy must not
+	# send /api/* straight to the backend: that skips the cookie/token translation entirely
+	# (the backend has no idea about HttpOnly cookies) and is what broke login/SSE in prod.
 	handle /api/incidents/events {
-		reverse_proxy {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
+		reverse_proxy {$FRONTEND_HOST}:{$FRONTEND_PORT} host.docker.internal:{$FRONTEND_PORT} {
 			lb_policy first
-			health_uri /api/actuator/health
+			health_uri /
 			health_interval 5s
 			flush_interval -1
 		}
 	}
 
 	handle /api/* {
-		reverse_proxy {$BACKEND_HOST}:{$BACKEND_PORT} host.docker.internal:{$BACKEND_PORT} {
+		reverse_proxy {$FRONTEND_HOST}:{$FRONTEND_PORT} host.docker.internal:{$FRONTEND_PORT} {
 			lb_policy first
-			health_uri /api/actuator/health
+			health_uri /
 			health_interval 5s
 		}
 	}
