@@ -18,8 +18,8 @@ import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogServ
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.ISecurityAdminService;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -62,7 +62,7 @@ class SecurityAdminControllerTest {
     private DashcamDeviceRepository dashcamDeviceRepository;
 
     @MockitoBean
-    private IUserAuthRepository userAuthRepository;
+    private IAccountStatusService accountStatusService;
 
     private static final UUID TARGET = UUID.randomUUID();
 

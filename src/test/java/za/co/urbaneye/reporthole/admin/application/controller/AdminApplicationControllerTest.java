@@ -15,7 +15,7 @@ import za.co.urbaneye.reporthole.admin.application.entity.AdminApplicationStatus
 import za.co.urbaneye.reporthole.admin.application.exception.AdminApplicationException;
 import za.co.urbaneye.reporthole.admin.application.service.interfaces.IAdminApplicationService;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.security.Jwt;
 
 import java.time.LocalDateTime;
@@ -52,7 +52,7 @@ class AdminApplicationControllerTest {
 
     /** Required by JwtAuthenticationFilter, which now does a per-request account-status lookup. */
     @MockitoBean
-    private IUserAuthRepository userAuthRepository;
+    private IAccountStatusService accountStatusService;
 
     @Test
     @WithMockUser

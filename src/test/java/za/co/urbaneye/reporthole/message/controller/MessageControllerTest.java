@@ -15,8 +15,8 @@ import za.co.urbaneye.reporthole.message.dto.SendMessageRequest;
 import za.co.urbaneye.reporthole.message.entity.MessageCategory;
 import za.co.urbaneye.reporthole.message.service.interfaces.IMessageService;
 import za.co.urbaneye.reporthole.security.Jwt;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,7 +46,7 @@ class MessageControllerTest {
     @MockitoBean private IMessageService messageService;
     @MockitoBean private Jwt jwt;
     @MockitoBean private DashcamDeviceRepository dashcamDeviceRepository;
-    @MockitoBean private IUserAuthRepository userAuthRepository;
+    @MockitoBean private IAccountStatusService accountStatusService;
 
     // ── POST /messages/contact ────────────────────────────────────────────────
 

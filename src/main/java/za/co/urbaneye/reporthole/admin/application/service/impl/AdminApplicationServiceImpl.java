@@ -17,6 +17,7 @@ import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -55,6 +56,7 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
     private final IAccessControlAuditRepository accessControlAuditRepository;
     private final IAuditLogService auditLogService;
     private final IMailService mailService;
+    private final IAccountStatusService accountStatusService;
 
     @Override
     @Transactional
@@ -133,6 +135,7 @@ public class AdminApplicationServiceImpl implements IAdminApplicationService {
         // match the JWT iat claim (see JwtAuthenticationFilter).
         auth.setCredentialsValidFrom(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         userAuthRepository.save(auth);
+        accountStatusService.evict(applicant.getUserId());
 
         // Approval is a privilege grant — record it on the same append-only trail as every
         // other role grant, with the reviewing security admin as the actor.

@@ -18,6 +18,7 @@ import za.co.urbaneye.reporthole.admin.security.service.interfaces.ISecurityAdmi
 import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.security.SecretUtil;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -55,6 +56,7 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
     private final IAccessControlAuditRepository auditRepository;
     private final IMunicipalityRepository municipalityRepository;
     private final PasswordEncoder encoder;
+    private final IAccountStatusService accountStatusService;
 
     @Override
     @Transactional
@@ -124,6 +126,7 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
         auth.setStatus(UserStatus.SUSPENDED);
         auth.setCredentialsValidFrom(nowToSeconds());
         userAuthRepository.save(auth);
+        accountStatusService.evict(targetUserId);
 
         writeAudit(AccessControlAction.ACCOUNT_SUSPENDED, actor, target,
                 previous.name(), UserStatus.SUSPENDED.name(), reason);
@@ -143,6 +146,7 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
 
         auth.setStatus(UserStatus.ACTIVE);
         userAuthRepository.save(auth);
+        accountStatusService.evict(targetUserId);
 
         writeAudit(AccessControlAction.ACCOUNT_REACTIVATED, actor, target,
                 UserStatus.SUSPENDED.name(), UserStatus.ACTIVE.name(), reason);
@@ -284,7 +288,8 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
 
     /**
      * Bumps the target account's {@code credentialsValidFrom} watermark to now, invalidating
-     * every JWT issued before this second.
+     * every JWT issued before this second. Used by {@link #grantRole}, {@link #revokeRole} and
+     * {@link #forceLogout} — all three need the same immediate-cutoff effect.
      *
      * @param targetUserId the account whose sessions should be cut off
      */
@@ -292,6 +297,7 @@ public class SecurityAdminServiceImpl implements ISecurityAdminService {
         UserAuth auth = loadAuth(targetUserId);
         auth.setCredentialsValidFrom(nowToSeconds());
         userAuthRepository.save(auth);
+        accountStatusService.evict(targetUserId);
     }
 
     /**

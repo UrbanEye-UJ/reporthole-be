@@ -13,7 +13,7 @@ import za.co.urbaneye.reporthole.admin.contractor.dto.ContractorResponse;
 import za.co.urbaneye.reporthole.admin.contractor.exception.ContractorException;
 import za.co.urbaneye.reporthole.admin.contractor.service.interfaces.IContractorService;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
 import za.co.urbaneye.reporthole.security.Jwt;
 
@@ -48,7 +48,7 @@ class ContractorRegistrationControllerTest {
 
     /** Required by JwtAuthenticationFilter, which now does a per-request account-status lookup. */
     @MockitoBean
-    private IUserAuthRepository userAuthRepository;
+    private IAccountStatusService accountStatusService;
 
     private CompleteContractorRegistrationRequest validRequest() {
         return new CompleteContractorRegistrationRequest(

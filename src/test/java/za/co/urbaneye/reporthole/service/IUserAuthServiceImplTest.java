@@ -21,6 +21,7 @@ import za.co.urbaneye.reporthole.admin.application.repository.IAdminApplicationR
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityTokenRepository;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.notification.service.interfaces.IMailService;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
 import za.co.urbaneye.reporthole.user.repository.IUserRepository;
 import za.co.urbaneye.reporthole.user.service.impl.LoginServiceImpl;
@@ -61,6 +62,9 @@ class IUserAuthServiceImplTest {
 
     @Mock
     private IAccessControlAuditRepository auditRepository;
+
+    @Mock
+    private IAccountStatusService accountStatusService;
 
     @InjectMocks
     RegistrationServiceImpl registrationService;

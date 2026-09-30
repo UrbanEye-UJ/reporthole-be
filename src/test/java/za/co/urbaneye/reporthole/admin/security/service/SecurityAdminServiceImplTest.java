@@ -21,6 +21,7 @@ import za.co.urbaneye.reporthole.admin.municipality.entity.Municipality;
 import za.co.urbaneye.reporthole.admin.municipality.repository.IMunicipalityRepository;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.admin.security.service.impl.SecurityAdminServiceImpl;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.entity.User;
 import za.co.urbaneye.reporthole.user.entity.UserAuth;
 import za.co.urbaneye.reporthole.user.entity.UserRole;
@@ -51,6 +52,7 @@ class SecurityAdminServiceImplTest {
     @Mock private IAccessControlAuditRepository auditRepository;
     @Mock private IMunicipalityRepository municipalityRepository;
     @Mock private PasswordEncoder encoder;
+    @Mock private IAccountStatusService accountStatusService;
 
     @InjectMocks
     private SecurityAdminServiceImpl service;
