@@ -12,6 +12,10 @@ spring:
       ddl-auto: create-drop
     database-platform: org.hibernate.dialect.H2Dialect
     show-sql: true
+  # Flyway's V1 baseline is Postgres-specific (PostGIS geometry columns, etc.) and won't run
+  # against H2 — tests keep building their schema from the entity model via ddl-auto above.
+  flyway:
+    enabled: false
   mail:
     host: localhost
     port: 1025

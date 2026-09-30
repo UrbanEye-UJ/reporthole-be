@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import za.co.urbaneye.reporthole.admin.municipality.dto.MunicipalityBoundaryResponse;
 import za.co.urbaneye.reporthole.admin.security.service.interfaces.IAuditLogService;
 import za.co.urbaneye.reporthole.incident.entity.IssueType;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.dto.UpdateProfileRequest;
 import za.co.urbaneye.reporthole.user.dto.UserProfileResponse;
 import za.co.urbaneye.reporthole.user.entity.User;
@@ -41,6 +42,7 @@ public class UserProfileServiceImpl implements IUserProfileService {
     private final IUserAuthRepository userAuthRepository;
     private final PasswordEncoder passwordEncoder;
     private final IAuditLogService auditLogService;
+    private final IAccountStatusService accountStatusService;
 
     @Override
     public UserProfileResponse getProfile() {
@@ -81,6 +83,7 @@ public class UserProfileServiceImpl implements IUserProfileService {
         // instead of remaining valid until it naturally expires (mirrors LoginServiceImpl.logout()).
         auth.setCredentialsValidFrom(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         userAuthRepository.save(auth);
+        accountStatusService.evict(userId);
         auditLogService.record(user, "ACCOUNT_DELETED", "USER", userId, "Account self-deleted");
     }
 

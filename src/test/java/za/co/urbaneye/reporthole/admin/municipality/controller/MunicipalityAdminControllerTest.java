@@ -16,7 +16,7 @@ import za.co.urbaneye.reporthole.admin.municipality.exception.MunicipalityExcept
 import za.co.urbaneye.reporthole.admin.municipality.service.interfaces.IMunicipalityService;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,7 +56,7 @@ class MunicipalityAdminControllerTest {
     private DashcamDeviceRepository dashcamDeviceRepository;
 
     @MockitoBean
-    private IUserAuthRepository userAuthRepository;
+    private IAccountStatusService accountStatusService;
 
     private static final UUID MUNI_ID = UUID.randomUUID();
 

@@ -10,7 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import za.co.urbaneye.reporthole.device.repository.DashcamDeviceRepository;
-import za.co.urbaneye.reporthole.user.repository.IUserAuthRepository;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.user.controller.AuthServiceController;
 import za.co.urbaneye.reporthole.user.dto.AuthResponse;
@@ -55,7 +55,7 @@ class AuthServiceControllerTest {
 
     /** Required by JwtAuthenticationFilter, which now does a per-request account-status lookup. */
     @MockitoBean
-    private IUserAuthRepository userAuthRepository;
+    private IAccountStatusService accountStatusService;
 
     @Autowired
     private ObjectMapper objectMapper;
