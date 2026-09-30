@@ -27,12 +27,14 @@ reporthole-be (Spring Boot)
 | Language | Java 21 |
 | ORM | Spring Data JPA + Hibernate Spatial |
 | Database (tests) | H2 in-memory |
-| Database (local/dev) | PostgreSQL 15 + PostGIS extension |
+| Database (local/dev) | PostgreSQL 16 + PostGIS extension |
+| Migrations | Flyway (`db/migration/V1__baseline.sql`); `ddl-auto: validate` in local/prod |
+| Caching | Caffeine (in-process `accountStatus` cache in front of the JWT filter's DB check) |
 | Security | Spring Security + JWT (jjwt 0.12.6) |
 | Secrets | Jasypt (PBEWITHHMACSHA512ANDAES_256) |
 | Mapping | MapStruct 1.5.5 |
 | Image storage | Local disk (`uploads/incidents/`) |
-| File validation | Apache Tika |
+| File validation | None (base64 decoded and written with a hardcoded `.jpg` extension; no content-type check) |
 | Boilerplate | Lombok |
 | API Docs | SpringDoc OpenAPI (Swagger UI) |
 | Build | Maven 3.9+ |

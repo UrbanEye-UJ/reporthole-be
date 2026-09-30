@@ -6,12 +6,18 @@ spring:
     password: ${POSTGRES_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
     properties:
       hibernate:
         globally_quoted_identifiers: false
+  flyway:
+    # V1 already matches what ddl-auto:update had built on any existing database: baselining
+    # (rather than re-running V1's CREATE TABLEs) only kicks in when the schema is non-empty and
+    # has no flyway_schema_history yet — a genuinely fresh database still runs V1 for real.
+    baseline-on-migrate: true
+    baseline-version: 1
   mail:
     host: localhost
     port: 1025

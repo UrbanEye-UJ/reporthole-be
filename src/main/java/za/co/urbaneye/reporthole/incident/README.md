@@ -51,7 +51,7 @@ incident/
 ## Reporting flow
 
 1. Client sends `POST /incidents/create` with base64 image, GPS coordinates, issue type, and description.
-2. Apache Tika validates the MIME type of the decoded image bytes.
+2. The decoded image bytes are written to disk with a hardcoded `.jpg` extension; no MIME/content-type validation is performed.
 3. If `forceCreate` is false (normal mode), `IncidentRepository.findNearestDuplicate` runs a PostGIS `ST_DWithin` query with a **1 km radius** filtered by `IssueType`.
 4. **No duplicate found:** incident saved, image written to `uploads/incidents/<uuid>.jpg`, `IncidentReporter` entry created for the submitting user. Response has `duplicate: false`.
 5. **Duplicate found:** response returns `duplicate: true` with the existing incident's data. No new incident is created.

@@ -9,6 +9,7 @@ import za.co.urbaneye.reporthole.admin.security.entity.AccessControlAuditEntry;
 import za.co.urbaneye.reporthole.admin.security.repository.IAccessControlAuditRepository;
 import za.co.urbaneye.reporthole.security.Jwt;
 import za.co.urbaneye.reporthole.security.SecretUtil;
+import za.co.urbaneye.reporthole.security.service.interfaces.IAccountStatusService;
 import za.co.urbaneye.reporthole.user.dto.AuthResponse;
 import za.co.urbaneye.reporthole.user.dto.IUserMapper;
 import za.co.urbaneye.reporthole.user.dto.LoginRequest;
@@ -72,6 +73,8 @@ public class LoginServiceImpl implements ILoginService {
      * JWT utility for token generation.
      */
     private final Jwt jwt;
+
+    private final IAccountStatusService accountStatusService;
 
     /**
      * Authenticates a user and returns a JWT token.
@@ -170,6 +173,7 @@ public class LoginServiceImpl implements ILoginService {
                 .orElseThrow(() -> new UserServiceException("User not found"));
         userAuth.setCredentialsValidFrom(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         authRepository.save(userAuth);
+        accountStatusService.evict(userId);
 
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserServiceException("User not found"));
