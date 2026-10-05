@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * Example {@code application.yaml} block:</p>
  * <pre>
  * inference:
- *   model-path: classpath:models/Reporthole-v1.onnx
+ *   model-path: classpath:models/Reporthole-v3.onnx
  *   stock-model-path: classpath:models/yolov8n-coco.onnx
  *   discard-threshold: 0.65
  *   auto-log-threshold: 0.80
@@ -32,7 +32,7 @@ public class InferenceProperties {
      * Accepts a {@code classpath:} prefix for resources bundled in the JAR,
      * or a plain filesystem path for externally mounted models (e.g. Docker volumes).
      */
-    private String modelPath = "classpath:models/Reporthole-v1.onnx";
+    private String modelPath = "classpath:models/Reporthole-v3.onnx";
 
     /**
      * Path to the stock, COCO-pretrained YOLOv8n ONNX model used by
